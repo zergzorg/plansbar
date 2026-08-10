@@ -74,6 +74,7 @@ private enum FixtureVerifier {
                 bucket: .active
             )
             try verifyRepositoryStates(fixtures: fixtures)
+            try verifySymlinkNormalizedRepository(fixtures: fixtures)
             try verifyRepositoryIdentity()
             try verifySnapshotCache(fixtures: fixtures)
             try verifySearch()
@@ -122,6 +123,22 @@ private enum FixtureVerifier {
         }
         guard actual == expected else {
             throw VerificationFailure(description: "Repository state golden mismatch")
+        }
+    }
+
+    private static func verifySymlinkNormalizedRepository(fixtures: URL) throws {
+        let temporary = URL(fileURLWithPath: "/tmp", isDirectory: true)
+            .appending(path: "plansbar-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: temporary) }
+        try FileManager.default.copyItem(
+            at: fixtures.appending(path: "repository/ready/sample-api", directoryHint: .isDirectory),
+            to: temporary
+        )
+        let validation = RepositoryValidator.validate(rootURL: temporary)
+        guard validation.state == .ready,
+              validation.plans.first?.relativePath == "docs/plans/active/2026-08-10-sample-rollout.md"
+        else {
+            throw VerificationFailure(description: "Symlink-normalized repository lost stable keys")
         }
     }
 

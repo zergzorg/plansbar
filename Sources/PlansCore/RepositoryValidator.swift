@@ -111,9 +111,10 @@ public enum RepositoryValidator {
             let extensionName = entryURL.pathExtension.lowercased()
             guard extensionName == "md" || extensionName == "html" else { continue }
 
+            let entryPath = entryURL.standardizedFileURL.resolvingSymlinksInPath().path
             let prefix = rootURL.path.hasSuffix("/") ? rootURL.path : rootURL.path + "/"
-            let relativePath = entryURL.path.hasPrefix(prefix)
-                ? String(entryURL.path.dropFirst(prefix.count))
+            let relativePath = entryPath.hasPrefix(prefix)
+                ? String(entryPath.dropFirst(prefix.count))
                 : entryURL.lastPathComponent
             if extensionName == "md" {
                 plans.append(PlanParser.parse(

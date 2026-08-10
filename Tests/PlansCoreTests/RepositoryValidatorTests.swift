@@ -23,6 +23,23 @@ final class RepositoryValidatorTests: XCTestCase {
         XCTAssertTrue(prompt?.contains("docs/plans/active/2026-08-10-old-plan.md") == true)
     }
 
+    func testRepositoryUnderSymlinkedSystemPathKeepsRootRelativeKeys() throws {
+        let temporary = URL(fileURLWithPath: "/tmp", isDirectory: true)
+            .appending(path: "plansbar-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: temporary) }
+        try FileManager.default.copyItem(
+            at: repositoryFixtures.appending(path: "ready/sample-api", directoryHint: .isDirectory),
+            to: temporary
+        )
+
+        let validation = RepositoryValidator.validate(rootURL: temporary)
+        XCTAssertEqual(validation.state, .ready)
+        XCTAssertEqual(
+            validation.plans.first?.relativePath,
+            "docs/plans/active/2026-08-10-sample-rollout.md"
+        )
+    }
+
     private var repositoryFixtures: URL {
         Bundle.module.resourceURL!
             .appending(path: "Fixtures/repository", directoryHint: .isDirectory)
