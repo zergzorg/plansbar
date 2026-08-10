@@ -13,6 +13,7 @@ struct PanelView: View {
     @State private var expandedTask: String?
     @State private var actionMessage = ""
     @State private var searchQuery = ""
+    @State private var selectedSearchResult: String?
     @FocusState private var isSearchFocused: Bool
 
     private var searchTerm: String {
@@ -81,6 +82,12 @@ struct PanelView: View {
         .onReceive(NotificationCenter.default.publisher(for: .focusPlansSearch)) { _ in
             isSearchFocused = true
         }
+        .onChange(of: searchQuery) {
+            selectedSearchResult = searchResults.first?.id
+        }
+        .onKeyPress(.downArrow) { moveSearchSelection(by: 1) }
+        .onKeyPress(.upArrow) { moveSearchSelection(by: -1) }
+        .onKeyPress(.return) { openSelectedSearchResult() }
     }
 
     // MARK: - Header
@@ -178,6 +185,7 @@ struct PanelView: View {
                 .font(.system(size: 11))
                 .focused($isSearchFocused)
                 .accessibilityLabel("Search plans by title, repository, or next step")
+                .accessibilityValue("\(searchResults.count) results")
                 .onExitCommand {
                     searchQuery = ""
                     isSearchFocused = false
@@ -280,8 +288,10 @@ struct PanelView: View {
                 isExpanded: expandedTask == task.id,
                 isCompact: isCompact,
                 showsContext: showsContext,
+                isSelected: showsContext && selectedSearchResult == task.id,
                 onToggle: {
                     withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) {
+                        if showsContext { selectedSearchResult = task.id }
                         expandedTask = expandedTask == task.id ? nil : task.id
                     }
                 },
@@ -480,6 +490,24 @@ struct PanelView: View {
         )
     }
 
+    private func moveSearchSelection(by offset: Int) -> KeyPress.Result {
+        guard !searchResults.isEmpty else { return .ignored }
+        guard let current = searchResults.firstIndex(where: { $0.id == selectedSearchResult }) else {
+            selectedSearchResult = searchResults[0].id
+            return .handled
+        }
+        let next = min(max(current + offset, 0), searchResults.count - 1)
+        selectedSearchResult = searchResults[next].id
+        return .handled
+    }
+
+    private func openSelectedSearchResult() -> KeyPress.Result {
+        guard !searchTerm.isEmpty, let selectedSearchResult else { return .ignored }
+        expandedTask = selectedSearchResult
+        isSearchFocused = false
+        return .handled
+    }
+
     private func sortTasks(_ left: PlanTask, _ right: PlanTask) -> Bool {
         if !searchTerm.isEmpty {
             let leftRank = searchRank(left) ?? Int.max
@@ -491,6 +519,9 @@ struct PanelView: View {
         }
         if left.isReadyToClose != right.isReadyToClose { return left.isReadyToClose }
         if left.needsAttention != right.needsAttention { return left.needsAttention }
-        return (left.progressPercent ?? 0) > (right.progressPercent ?? 0)
+        if left.progressPercent != right.progressPercent {
+            return (left.progressPercent ?? 0) > (right.progressPercent ?? 0)
+        }
+        return left.id < right.id
     }
 }

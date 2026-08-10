@@ -5,6 +5,7 @@ struct PlanRowView: View {
     let isExpanded: Bool
     let isCompact: Bool
     let showsContext: Bool
+    let isSelected: Bool
     let onToggle: () -> Void
     let onRun: () -> Void
 
@@ -126,7 +127,12 @@ struct PlanRowView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, isCompact ? 5 : 9)
         .contentShape(Rectangle())
-        .background(isHovered ? Color.primary.opacity(0.035) : .clear)
+        .background(
+            isSelected
+                ? Color.accentColor.opacity(0.12)
+                : (isHovered ? Color.primary.opacity(0.035) : .clear)
+        )
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .onHover { isHovered = $0 }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: isHovered)
     }
