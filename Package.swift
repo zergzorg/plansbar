@@ -11,7 +11,11 @@ let package = Package(
     ],
     targets: [
         .target(name: "PlansCore"),
-        .executableTarget(name: "PlansBar", dependencies: ["PlansCore"]),
+        .executableTarget(
+            name: "PlansBar",
+            dependencies: ["PlansCore"],
+            exclude: ["PlansBar.entitlements"]
+        ),
         .executableTarget(
             name: "PlansBarCLI",
             dependencies: ["PlansCore"],

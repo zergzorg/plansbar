@@ -6,15 +6,16 @@ struct PlanRowView: View {
     let isCompact: Bool
     let showsContext: Bool
     let isSelected: Bool
+    let preferredAgent: AgentAdapter
     let onToggle: () -> Void
-    let onRun: () -> Void
+    let onRun: (AgentAdapter) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovered = false
     @State private var copied: CopyKind?
 
     private enum CopyKind {
-        case prompt, path
+        case path
     }
 
     var body: some View {
@@ -84,14 +85,31 @@ struct PlanRowView: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     HStack(spacing: 10) {
-                        Button(task.actionTitle, action: onRun)
+                        if preferredAgent == .askEveryTime {
+                            Menu(task.actionTitle) {
+                                agentActions
+                            }
+                            .menuStyle(.borderedButton)
+                            .controlSize(.small)
+                            .disabled(!task.isActionable)
+                        } else {
+                            Button(primaryActionTitle) {
+                                onRun(preferredAgent)
+                            }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
                             .disabled(!task.isActionable)
+                        }
 
                         Menu {
+                            Section("Run once with") {
+                                agentActions
+                            }
+
+                            Divider()
+
                             Button {
-                                copy(task.portablePrompt, kind: .prompt)
+                                onRun(.copyOnly)
                             } label: {
                                 Label("Copy prompt", systemImage: "doc.on.doc")
                             }
@@ -135,6 +153,17 @@ struct PlanRowView: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .onHover { isHovered = $0 }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: isHovered)
+    }
+
+    @ViewBuilder
+    private var agentActions: some View {
+        Button("Codex CLI") { onRun(.codex) }.disabled(!task.isActionable)
+        Button("Claude Code CLI") { onRun(.claude) }.disabled(!task.isActionable)
+        Button("Copy prompt") { onRun(.copyOnly) }
+    }
+
+    private var primaryActionTitle: String {
+        preferredAgent == .copyOnly ? "Copy prompt" : task.actionTitle
     }
 
     private func copy(_ text: String, kind: CopyKind) {

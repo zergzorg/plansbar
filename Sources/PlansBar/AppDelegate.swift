@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var panel: NSPanel!
     private var client: IndexClient!
     private var preferences: Preferences!
+    private var agentPreferences: AgentPreferences!
     private var accessStore: RepositoryAccessStore!
     private var cancellables: Set<AnyCancellable> = []
     private var clickMonitor: Any?
@@ -19,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         preferences = Preferences()
+        agentPreferences = AgentPreferences()
         accessStore = RepositoryAccessStore()
         client = IndexClient(accessStore: accessStore)
 
@@ -62,7 +64,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: - Панель
 
     private func setupPanel() {
-        let content = PanelView(client: client, preferences: preferences, accessStore: accessStore)
+        let content = PanelView(
+            client: client,
+            preferences: preferences,
+            agentPreferences: agentPreferences,
+            accessStore: accessStore
+        )
         let hosting = NSHostingController(rootView: content)
 
         panel = NSPanel(

@@ -136,10 +136,39 @@ final class IndexClient: ObservableObject {
         return "Prompt copied"
     }
 
+    func perform(_ task: PlanTask, with adapter: AgentAdapter) async -> String {
+        if adapter == .copyOnly { return await copyPrompt(task) }
+        do {
+            try await AgentLauncher.launch(
+                adapter: adapter,
+                repositoryPath: task.repoPath,
+                prompt: task.portablePrompt
+            )
+            return "Opened \(adapter.title) in Terminal"
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
     func copyPreparationPrompt(_ issue: RepositoryIssue) -> String {
         guard let prompt = issue.preparationPrompt else { return "Repository is not accessible" }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(prompt, forType: .string)
         return "Preparation prompt copied"
+    }
+
+    func performPreparation(_ issue: RepositoryIssue, with adapter: AgentAdapter) async -> String {
+        if adapter == .copyOnly { return copyPreparationPrompt(issue) }
+        guard let prompt = issue.preparationPrompt else { return "Repository is not accessible" }
+        do {
+            try await AgentLauncher.launch(
+                adapter: adapter,
+                repositoryPath: issue.path,
+                prompt: prompt
+            )
+            return "Opened \(adapter.title) in Terminal"
+        } catch {
+            return error.localizedDescription
+        }
     }
 }

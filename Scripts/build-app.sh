@@ -66,11 +66,13 @@ cat > "${BUNDLE}/Contents/Info.plist" <<PLIST
     <string>PlansBar reads plan files from repositories you add.</string>
     <key>NSDownloadsFolderUsageDescription</key>
     <string>PlansBar reads plan files from repositories you add.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>PlansBar opens an interactive coding-agent session in Terminal when you request it.</string>
 </dict>
 </plist>
 PLIST
 
-codesign --force --deep --options runtime --sign - "${BUNDLE}"
+codesign --force --deep --options runtime --entitlements Sources/PlansBar/PlansBar.entitlements --sign - "${BUNDLE}"
 
 echo "✓ Ready: ${BUNDLE}"
 echo "  Run: open ${BUNDLE}"

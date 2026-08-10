@@ -44,4 +44,20 @@ final class AgentPromptTests: XCTestCase {
         XCTAssertTrue(AgentPrompt.make(input).contains("Review and finish this plan."))
         XCTAssertTrue(AgentPrompt.make(input, language: .russian).contains("Проверь и заверши этот план."))
     }
+
+    func testBacklogIntentIsEquivalentInBothLanguages() {
+        let input = AgentPromptInput(
+            planPath: sample.planPath,
+            repositoryName: sample.repositoryName,
+            repositoryPath: sample.repositoryPath,
+            title: sample.title,
+            nextStep: sample.nextStep,
+            completedSteps: sample.completedSteps,
+            totalSteps: sample.totalSteps,
+            intent: .activatePlan
+        )
+
+        XCTAssertTrue(AgentPrompt.make(input).contains("Activate and start this plan."))
+        XCTAssertTrue(AgentPrompt.make(input, language: .russian).contains("Активируй и начни этот план."))
+    }
 }

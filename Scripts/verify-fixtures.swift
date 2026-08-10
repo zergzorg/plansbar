@@ -77,6 +77,8 @@ private enum FixtureVerifier {
             try verifyRepositoryIdentity()
             try verifySnapshotCache(fixtures: fixtures)
             try verifySearch()
+            try verifyAgentLaunchCommand()
+            try verifyGitWorktreeGuard()
             print("Fixture verification passed.")
         } catch {
             fputs("Fixture verification failed: \(error)\n", stderr)
@@ -210,6 +212,84 @@ private enum FixtureVerifier {
         PlanSearch.lifecycleRank("backlog") < PlanSearch.lifecycleRank("completed")
         else {
             throw VerificationFailure(description: "Plan search ranking failed")
+        }
+    }
+
+    private static func verifyAgentLaunchCommand() throws {
+        let values = [
+            "path with spaces",
+            "apostrophe's repo",
+            "Юникод",
+            "line one\nline two",
+            "--leading-dash"
+        ]
+        for value in values {
+            let process = Process()
+            let output = Pipe()
+            process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+            process.arguments = ["-c", "/usr/bin/printf %s \(AgentLaunchCommand.shellQuote(value))"]
+            process.standardOutput = output
+            try process.run()
+            process.waitUntilExit()
+            guard String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) == value else {
+                throw VerificationFailure(description: "Agent shell quoting failed")
+            }
+        }
+
+        let prompt = "private prompt\nwith lines"
+        let command = AgentLaunchCommand.terminalCommand(
+            executablePath: "/opt/homebrew/bin/codex",
+            repositoryPath: "/tmp/repo with spaces",
+            prompt: prompt
+        )
+        guard !command.contains(prompt), command.unicodeScalars.allSatisfy(\.isASCII) else {
+            throw VerificationFailure(description: "Terminal command exposes literal prompt")
+        }
+    }
+
+    private static func verifyGitWorktreeGuard() throws {
+        let repository = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: repository) }
+        try FileManager.default.createDirectory(at: repository, withIntermediateDirectories: true)
+        try runGit(["init", "-q"], at: repository)
+        try "tracked\n".write(
+            to: repository.appending(path: "tracked.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try runGit(["add", "tracked.txt"], at: repository)
+        try runGit([
+            "-c", "user.name=PlansBar Test",
+            "-c", "user.email=plansbar@example.invalid",
+            "commit", "-q", "-m", "fixture"
+        ], at: repository)
+        guard GitWorktreeGuard.check(repositoryPath: repository.path) == .clean else {
+            throw VerificationFailure(description: "Clean Git repository was blocked")
+        }
+
+        try "changed\n".write(
+            to: repository.appending(path: "untracked.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+        guard GitWorktreeGuard.check(repositoryPath: repository.path) == .changed else {
+            throw VerificationFailure(description: "Dirty Git repository was not blocked")
+        }
+    }
+
+    private static func runGit(_ arguments: [String], at repository: URL) throws {
+        let process = Process()
+        process.executableURL = URL(
+            fileURLWithPath: "/Library/Developer/CommandLineTools/usr/bin/git"
+        )
+        process.arguments = ["-C", repository.path] + arguments
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw VerificationFailure(description: "Unable to create Git guard fixture")
         }
     }
 

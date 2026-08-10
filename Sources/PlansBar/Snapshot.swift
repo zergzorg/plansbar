@@ -98,7 +98,7 @@ struct PlanTask: Identifiable {
 
     var planPath: String { sourceFile ?? absolutePath }
     var isMarkdown: Bool { planPath.lowercased().hasSuffix(".md") }
-    var isActionable: Bool { isMarkdown && parseState == .parsed }
+    var isActionable: Bool { isMarkdown && parseState == .parsed && bucket != "completed" }
     var isActive: Bool { bucket == "active" }
     var isReadyToClose: Bool { isActive && progressPercent == 100 }
 
@@ -144,7 +144,7 @@ struct PlanTask: Identifiable {
         if parseState == .invalidPlan { return "Needs preparation" }
         if bucket == "backlog" { return "Start plan" }
         if isReadyToClose { return "Review plan" }
-        return "Copy prompt"
+        return "Continue plan"
     }
 
     var portablePrompt: String {
@@ -155,7 +155,8 @@ struct PlanTask: Identifiable {
             title: title,
             nextStep: nextOpenStep,
             completedSteps: checkboxDone,
-            totalSteps: checkboxTotal
+            totalSteps: checkboxTotal,
+            intent: bucket == "backlog" ? .activatePlan : (isReadyToClose ? .closePlan : .continuePlan)
         ))
     }
 }

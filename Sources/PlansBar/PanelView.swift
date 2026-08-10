@@ -6,6 +6,7 @@ struct PanelView: View {
 
     @ObservedObject var client: IndexClient
     @ObservedObject var preferences: Preferences
+    @ObservedObject var agentPreferences: AgentPreferences
     @ObservedObject var accessStore: RepositoryAccessStore
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -133,6 +134,20 @@ struct PanelView: View {
                 .fixedSize()
                 .accessibilityLabel("Manage repositories")
                 .help("Add or remove repositories")
+
+                Menu {
+                    Picker("Preferred agent", selection: $agentPreferences.preferred) {
+                        ForEach(AgentAdapter.allCases) { adapter in
+                            Text(adapter.title).tag(adapter)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "terminal")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .accessibilityLabel("Preferred agent: \(agentPreferences.preferred.title)")
+                .help("Choose the default agent")
 
                 Menu {
                     ForEach(repositoryChoices) { repo in
@@ -289,13 +304,14 @@ struct PanelView: View {
                 isCompact: isCompact,
                 showsContext: showsContext,
                 isSelected: showsContext && selectedSearchResult == task.id,
+                preferredAgent: agentPreferences.preferred,
                 onToggle: {
                     withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) {
                         if showsContext { selectedSearchResult = task.id }
                         expandedTask = expandedTask == task.id ? nil : task.id
                     }
                 },
-                onRun: { run(task) }
+                onRun: { adapter in run(task, with: adapter) }
             )
             Divider()
                 .padding(.leading, 14)
@@ -327,6 +343,13 @@ struct PanelView: View {
                         actionMessage = client.copyPreparationPrompt(issue)
                     }
                     .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+
+                    Menu("Open with agent") {
+                        Button("Codex CLI") { runPreparation(issue, with: .codex) }
+                        Button("Claude Code CLI") { runPreparation(issue, with: .claude) }
+                    }
+                    .menuStyle(.borderlessButton)
                     .controlSize(.small)
                 }
 
@@ -472,10 +495,21 @@ struct PanelView: View {
         accessStore.remove(repository)
     }
 
-    private func run(_ task: PlanTask) {
-        actionMessage = "Copying prompt for \(task.repo)…"
+    private func run(_ task: PlanTask, with adapter: AgentAdapter) {
+        actionMessage = adapter == .copyOnly
+            ? "Copying prompt for \(task.repo)…"
+            : "Opening \(adapter.title)…"
         Task {
-            actionMessage = await client.copyPrompt(task)
+            actionMessage = await client.perform(task, with: adapter)
+            try? await Task.sleep(for: .seconds(4))
+            actionMessage = ""
+        }
+    }
+
+    private func runPreparation(_ issue: RepositoryIssue, with adapter: AgentAdapter) {
+        actionMessage = "Opening \(adapter.title)…"
+        Task {
+            actionMessage = await client.performPreparation(issue, with: adapter)
             try? await Task.sleep(for: .seconds(4))
             actionMessage = ""
         }

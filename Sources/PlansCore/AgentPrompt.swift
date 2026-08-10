@@ -3,6 +3,12 @@ public enum AgentPromptLanguage: Sendable {
     case russian
 }
 
+public enum AgentPromptIntent: Sendable, Equatable {
+    case continuePlan
+    case closePlan
+    case activatePlan
+}
+
 public struct AgentPromptInput: Sendable {
     public let planPath: String
     public let repositoryName: String
@@ -11,6 +17,7 @@ public struct AgentPromptInput: Sendable {
     public let nextStep: String?
     public let completedSteps: Int
     public let totalSteps: Int
+    public let intent: AgentPromptIntent
 
     public init(
         planPath: String,
@@ -19,7 +26,8 @@ public struct AgentPromptInput: Sendable {
         title: String,
         nextStep: String?,
         completedSteps: Int,
-        totalSteps: Int
+        totalSteps: Int,
+        intent: AgentPromptIntent? = nil
     ) {
         self.planPath = planPath
         self.repositoryName = repositoryName
@@ -28,6 +36,7 @@ public struct AgentPromptInput: Sendable {
         self.nextStep = nextStep
         self.completedSteps = completedSteps
         self.totalSteps = totalSteps
+        self.intent = intent ?? (nextStep == nil ? .closePlan : .continuePlan)
     }
 }
 
@@ -49,7 +58,7 @@ public enum AgentPrompt {
             ? "\(input.completedSteps) of \(input.totalSteps) steps complete"
             : "steps are not marked with checkboxes"
         var lines = [
-            input.nextStep == nil ? "Review and finish this plan." : "Continue work on this plan.",
+            englishTitle(input.intent),
             "",
             "Plan: \(input.planPath)",
             "Repository: \(input.repositoryName) (\(input.repositoryPath))",
@@ -57,13 +66,19 @@ public enum AgentPrompt {
             "Title: \(input.title)"
         ]
 
-        if let nextStep = input.nextStep, !nextStep.isEmpty {
+        if input.intent == .closePlan {
+            lines.append("")
+            lines.append("Read the full plan, run its validation and acceptance checks, then close it according to the repository instructions if the evidence is complete.")
+        } else if let nextStep = input.nextStep, !nextStep.isEmpty {
             lines.append("Next step: \(nextStep)")
             lines.append("")
-            lines.append("Read the full plan, complete its next open step, update the checkbox in the file, and briefly report what changed.")
+            let instruction = input.intent == .activatePlan
+                ? "Read the full plan, activate it according to the repository instructions, complete its first open step, update the file, and briefly report what changed."
+                : "Read the full plan, complete its next open step, update the checkbox in the file, and briefly report what changed."
+            lines.append(instruction)
         } else {
             lines.append("")
-            lines.append("Read the full plan, run its validation and acceptance checks, and report whether it is ready to close.")
+            lines.append("Read the full plan and report the next safe action.")
         }
 
         return lines.joined(separator: "\n")
@@ -74,7 +89,7 @@ public enum AgentPrompt {
             ? "выполнено \(input.completedSteps) из \(input.totalSteps) шагов"
             : "шаги не размечены чекбоксами"
         var lines = [
-            input.nextStep == nil ? "Проверь и заверши этот план." : "Продолжи работу над этим планом.",
+            russianTitle(input.intent),
             "",
             "План: \(input.planPath)",
             "Репозиторий: \(input.repositoryName) (\(input.repositoryPath))",
@@ -82,15 +97,37 @@ public enum AgentPrompt {
             "Название: \(input.title)"
         ]
 
-        if let nextStep = input.nextStep, !nextStep.isEmpty {
+        if input.intent == .closePlan {
+            lines.append("")
+            lines.append("Прочитай план целиком, выполни проверки и критерии приёмки, затем закрой его по правилам репозитория, если все результаты подтверждены.")
+        } else if let nextStep = input.nextStep, !nextStep.isEmpty {
             lines.append("Следующий шаг: \(nextStep)")
             lines.append("")
-            lines.append("Прочитай план целиком, выполни следующий открытый шаг, обнови чекбокс в файле и коротко сообщи, что изменилось.")
+            let instruction = input.intent == .activatePlan
+                ? "Прочитай план целиком, активируй его по правилам репозитория, выполни первый открытый шаг, обнови файл и коротко сообщи, что изменилось."
+                : "Прочитай план целиком, выполни следующий открытый шаг, обнови чекбокс в файле и коротко сообщи, что изменилось."
+            lines.append(instruction)
         } else {
             lines.append("")
-            lines.append("Прочитай план целиком, выполни проверки и критерии приёмки и сообщи, готов ли план к закрытию.")
+            lines.append("Прочитай план целиком и сообщи следующее безопасное действие.")
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    private static func englishTitle(_ intent: AgentPromptIntent) -> String {
+        switch intent {
+        case .continuePlan: return "Continue work on this plan."
+        case .closePlan: return "Review and finish this plan."
+        case .activatePlan: return "Activate and start this plan."
+        }
+    }
+
+    private static func russianTitle(_ intent: AgentPromptIntent) -> String {
+        switch intent {
+        case .continuePlan: return "Продолжи работу над этим планом."
+        case .closePlan: return "Проверь и заверши этот план."
+        case .activatePlan: return "Активируй и начни этот план."
+        }
     }
 }
