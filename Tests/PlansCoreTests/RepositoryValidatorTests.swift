@@ -40,6 +40,46 @@ final class RepositoryValidatorTests: XCTestCase {
         )
     }
 
+    /// Git не хранит пустые каталоги, поэтому репозиторий без `backlog`
+    /// обязан индексироваться, а недостающий bucket — только сообщаться.
+    func testRepositoryWithoutBacklogDirectoryStillIndexes() throws {
+        let sandbox = FileManager.default.temporaryDirectory
+            .appending(path: "plansbar-partial-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let active = sandbox.appending(path: "docs/plans/active", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: active, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sandbox) }
+        try FileManager.default.copyItem(
+            at: repositoryFixtures.appending(
+                path: "ready/sample-api/docs/plans/active/2026-08-10-sample-rollout.md"
+            ),
+            to: active.appending(path: "2026-08-10-sample-rollout.md")
+        )
+
+        let validation = RepositoryValidator.validate(rootURL: sandbox)
+
+        XCTAssertEqual(validation.state, .ready)
+        XCTAssertEqual(validation.plans.count, 1)
+        XCTAssertTrue(validation.missingPaths.contains("docs/plans/backlog"))
+    }
+
+    func testRepositoryWithoutAnyBucketIsMissingStructure() throws {
+        let sandbox = FileManager.default.temporaryDirectory
+            .appending(path: "plansbar-empty-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: sandbox, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sandbox) }
+
+        XCTAssertEqual(RepositoryValidator.validate(rootURL: sandbox).state, .missingStructure)
+    }
+
+    func testQueueOnlyScanSkipsCompletedArchive() {
+        let queueOnly = RepositoryValidator.validate(
+            rootURL: repositoryFixtures.appending(path: "ready/sample-api", directoryHint: .isDirectory),
+            buckets: [.active, .backlog]
+        )
+
+        XCTAssertTrue(queueOnly.plans.allSatisfy { $0.bucket != .completed })
+    }
+
     private var repositoryFixtures: URL {
         Bundle.module.resourceURL!
             .appending(path: "Fixtures/repository", directoryHint: .isDirectory)

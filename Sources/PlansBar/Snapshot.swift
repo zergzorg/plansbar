@@ -232,9 +232,13 @@ struct PlanTask: Identifiable {
         case 0: return "today"
         case 1: return "yesterday"
         case 2..<7: return "\(days) days ago"
-        case 7..<30: return "\(days / 7) weeks ago"
-        default: return "\(days / 30) months ago"
+        case 7..<30: return pluralized(days / 7, "week")
+        default: return pluralized(days / 30, "month")
         }
+    }
+
+    private func pluralized(_ value: Int, _ unit: String) -> String {
+        "\(value) \(unit)\(value == 1 ? "" : "s") ago"
     }
 
     var actionTitle: String {

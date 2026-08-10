@@ -43,6 +43,11 @@ final class IndexClient: ObservableObject {
     private let refreshEnabled: Bool
     private var cancellable: AnyCancellable?
     private var refreshRequested = false
+    private let watcher = PlanWatcher()
+    /// Git проверяется один раз за запуск: отсутствие исполняемого файла не
+    /// должно приводить к повторным probe на каждом скане.
+    private let git = GitCapability.probe()
+    private var validations: [RepositoryValidation] = []
 
     init(accessStore: RepositoryAccessStore, initialSnapshot: Snapshot? = nil) {
         self.accessStore = accessStore
@@ -82,47 +87,105 @@ final class IndexClient: ObservableObject {
             refreshRequested = false
             let roots = accessStore.resolvedRepositories()
             guard !roots.isEmpty else {
+                validations = []
                 snapshot = .empty
                 repositoryIssues = []
                 connection = .unavailable("Add a repository root to start.")
+                watcher.stop()
                 return
             }
 
             connection = .starting
-            let validations = await Task.detached(priority: .userInitiated) {
-                roots.map {
-                    RepositoryValidator.validate(
-                        rootURL: $0.url,
-                        fallbackIdentity: $0.registrationID
-                    )
-                }
-            }.value
+            // Сначала очередь, с которой работают каждый день: панель
+            // становится живой до того, как разобран архив completed.
+            let queueOnly = await validate(roots, buckets: [.active, .backlog])
+            validations = queueOnly
+            publish(repositorySet: roots.map(\.registrationID), persist: false)
 
-            let uniqueValidations = Self.collapseConfirmedClones(validations)
-            let cached = PlansSnapshot(
-                repositorySet: roots.map(\.registrationID),
-                validations: uniqueValidations
-            )
+            validations = await validate(roots, buckets: PlanBucket.allCases)
+            publish(repositorySet: roots.map(\.registrationID), persist: true)
+            connection = .connected
+            startWatching(roots)
+        } while refreshRequested
+    }
+
+    /// Пересканирует только те репозитории, из которых пришли события
+    /// файловой системы; остальные остаются в снапшоте нетронутыми.
+    private func refreshAffected(_ affectedRoots: Set<URL>) async {
+        guard refreshEnabled, !isRefreshing else {
+            refreshRequested = isRefreshing
+            return
+        }
+        let roots = accessStore.resolvedRepositories()
+        let affected = roots.filter { affectedRoots.contains($0.url.standardizedFileURL.resolvingSymlinksInPath()) }
+        guard !affected.isEmpty else { return }
+
+        isRefreshing = true
+        defer { isRefreshing = false }
+        let updated = await validate(affected, buckets: PlanBucket.allCases)
+        var merged = validations
+        for validation in updated {
+            if let index = merged.firstIndex(where: { $0.identity == validation.identity }) {
+                merged[index] = validation
+            } else {
+                merged.append(validation)
+            }
+        }
+        validations = merged
+        publish(repositorySet: roots.map(\.registrationID), persist: true)
+    }
+
+    private func validate(
+        _ roots: [ResolvedRepository],
+        buckets: [PlanBucket]
+    ) async -> [RepositoryValidation] {
+        let git = git
+        return await Task.detached(priority: .userInitiated) {
+            roots.map {
+                RepositoryValidator.validate(
+                    rootURL: $0.url,
+                    fallbackIdentity: $0.registrationID,
+                    buckets: buckets,
+                    git: git
+                )
+            }
+        }.value
+    }
+
+    private func publish(repositorySet: [String], persist: Bool) {
+        let uniqueValidations = Self.collapseConfirmedClones(validations)
+        let plansSnapshot = PlansSnapshot(
+            repositorySet: repositorySet,
+            validations: uniqueValidations
+        )
+        if persist {
             do {
-                try SnapshotCache.save(cached, to: cacheURL)
+                try SnapshotCache.save(plansSnapshot, to: cacheURL)
             } catch {
                 NSLog("Не удалось сохранить снимок PlansBar: %@", error.localizedDescription)
             }
-            snapshot = Snapshot(cached)
-            repositoryIssues = uniqueValidations.compactMap { validation in
-                guard validation.state != .ready else { return nil }
-                return RepositoryIssue(
-                    identity: validation.identity,
-                    name: validation.name,
-                    path: validation.rootURL.path,
-                    state: validation.state,
-                    missingPaths: validation.missingPaths,
-                    invalidPlanCount: validation.plans.filter { $0.parseState == .invalidPlan }.count,
-                    preparationPrompt: RepositoryPreparationPrompt.make(validation)
-                )
+        }
+        snapshot = Snapshot(plansSnapshot)
+        repositoryIssues = uniqueValidations.compactMap { validation in
+            guard validation.state != .ready else { return nil }
+            return RepositoryIssue(
+                identity: validation.identity,
+                name: validation.name,
+                path: validation.rootURL.path,
+                state: validation.state,
+                missingPaths: validation.missingPaths,
+                invalidPlanCount: validation.plans.filter { $0.parseState == .invalidPlan }.count,
+                preparationPrompt: RepositoryPreparationPrompt.make(validation)
+            )
+        }
+    }
+
+    private func startWatching(_ roots: [ResolvedRepository]) {
+        watcher.start(roots: roots.map(\.url)) { [weak self] affected in
+            Task { @MainActor in
+                await self?.refreshAffected(affected)
             }
-            connection = .connected
-        } while refreshRequested
+        }
     }
 
     private static func collapseConfirmedClones(

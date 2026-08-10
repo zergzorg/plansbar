@@ -76,6 +76,30 @@ public struct PlanRecord: Identifiable, Codable, Sendable {
         self.lintWarnings = lintWarnings
         self.daysSinceModified = daysSinceModified
     }
+
+    /// Git знает дату последнего коммита точнее, чем mtime рабочего дерева,
+    /// поэтому freshness уточняется после сканирования буфера.
+    public func withDaysSinceModified(_ days: Int?) -> PlanRecord {
+        PlanRecord(
+            relativePath: relativePath,
+            absolutePath: absolutePath,
+            bucket: bucket,
+            parseState: parseState,
+            planVersion: planVersion,
+            title: title,
+            status: status,
+            created: created,
+            completed: completed,
+            scope: scope,
+            checkboxTotal: checkboxTotal,
+            checkboxDone: checkboxDone,
+            progressPercent: progressPercent,
+            nextOpenStep: nextOpenStep,
+            lintErrors: lintErrors,
+            lintWarnings: lintWarnings,
+            daysSinceModified: days
+        )
+    }
 }
 
 public struct RepositoryValidation: Codable, Sendable {
