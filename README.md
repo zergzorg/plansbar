@@ -1,8 +1,23 @@
 # PlansBar
 
-PlansBar is an open-source macOS menu bar app for working with Markdown plans across local Git repositories.
+[English](README.md) · [Русский](Docs/i18n/ru/README.md) · [简体中文](Docs/i18n/zh-CN/README.md) · [Español](Docs/i18n/es/README.md) · [Português do Brasil](Docs/i18n/pt-BR/README.md) · [日本語](Docs/i18n/ja/README.md) · [한국어](Docs/i18n/ko/README.md) · [Français](Docs/i18n/fr/README.md) · [Deutsch](Docs/i18n/de/README.md)
 
-This repository starts with a clean publication boundary and a buildable source preview. The app will index repository roots explicitly added by the user from any folder, keep plan files read-only, and hand lifecycle changes or repository preparation to a user-selected coding agent. It does not collect telemetry.
+PlansBar is an open-source macOS menu bar app for working with executable Markdown plans across local Git repositories. It reads repositories in place, keeps plan files read-only, and hands explicit changes to Codex CLI, Claude Code CLI, or the clipboard.
+
+| Focus | Backlog |
+| --- | --- |
+| ![Focus view with mocked sample-api and mobile-app plans](Docs/assets/screenshots/focus.png) | ![Backlog view with a mocked release-health plan](Docs/assets/screenshots/backlog.png) |
+
+The screenshots use synthetic `sample-api` and `mobile-app` data. They contain no personal paths or private plan content.
+
+## Features
+
+- Add repository roots from any folder. PlansBar does not scan their parent directory.
+- Use one required format: [Plan Format v1](Docs/PLAN_FORMAT_V1.md).
+- Switch between active Focus work and the Backlog queue.
+- Search every indexed plan by title, repository, or next step.
+- Continue, activate, close, or create plans through provider-neutral prompts.
+- Keep derived snapshots on the Mac. No telemetry, accounts, or bundled web server.
 
 ## Requirements
 
@@ -12,7 +27,7 @@ This repository starts with a clean publication boundary and a buildable source 
 
 Node.js and npm are not required by the macOS app.
 
-## Build from source
+## Install from source
 
 ```bash
 git clone https://github.com/zergzorg/plansbar.git
@@ -23,46 +38,44 @@ open build/PlansBar.app
 
 The build is ad-hoc signed for local use. PlansBar does not publish a downloadable app bundle until Developer ID signing and notarization are available.
 
-## Privacy boundary
+## Quick Start
 
-- You explicitly choose each repository root; PlansBar does not search parent folders for repositories.
-- PlansBar reads plan files in place and never edits or moves them.
-- Derived state stays on the Mac.
-- No telemetry, accounts, or cloud service.
-
-See [Docs/PRIVACY.md](Docs/PRIVACY.md) and [Docs/ARCHITECTURE.md](Docs/ARCHITECTURE.md).
-
-## Plan repositories
-
-PlansBar supports one executable-plan format: [Plan Format v1](Docs/PLAN_FORMAT_V1.md). Add each repository root explicitly and keep the same internal structure in every repository:
+1. Open PlansBar from the menu bar.
+2. Choose **Add Repository…** and select a repository root.
+3. Keep this structure inside the repository:
 
 ```text
 docs/plans/{backlog,active,completed}
 ```
 
-If that structure is missing or a candidate is not valid v1, PlansBar stays read-only and offers a [repository preparation prompt](Docs/REPOSITORY_PREPARATION_AGENT_PROMPT.md).
+4. If the repository is not ready, copy or open its preparation prompt.
+5. Choose **Ask every time**, **Codex CLI**, **Claude Code CLI**, or **Copy only** for plan actions.
 
-The same checks are available from the built CLI:
+PlansBar never edits, creates, moves, or deletes a plan file itself.
+
+## Validate a repository
+
+Every plan must start with `Plan-Version: 1` and follow the canonical English headings. Run the same checks from the CLI:
 
 ```bash
 .build/release/plansbar validate-repository --root /path/to/repository --json
 .build/release/plansbar lint /path/to/repository --json
 ```
 
-## Repository layout
+See [the migration guide](Docs/MIGRATING_EXISTING_PLANS.md) and [repository preparation prompt](Docs/REPOSITORY_PREPARATION_AGENT_PROMPT.md).
 
-- `Sources/PlansBar` — macOS menu bar app.
-- `Sources/PlansCore` — provider-neutral shared logic.
-- `Sources/plansbar-cli` — command-line entry point.
-- `Dashboard` — optional source-installed dashboard; it is not part of the app runtime or the v1 release gate.
-- `Scripts` — local build and public-tree verification.
+## Agent handoff
 
-## Status
+PlansBar launches only an agent the user explicitly selects. Sessions open interactively in Terminal, in the selected repository root, without dangerous or non-interactive flags. Agent launch is blocked when the repository has uncommitted changes; copying the prompt remains available.
 
-The source preview now includes a persistent repository picker, strict Plan Format v1 validation, a versioned local cache, cross-repository search, preparation prompts, and safe Codex/Claude handoff. Filesystem watching, optional agent path selection, and release signing remain in progress.
+## Privacy and support
 
-Release milestones: `0.1` source preview, `0.2` source-built beta, and `1.0` source-built release. Use the in-app **Check Releases** link for explicit update checks; PlansBar performs no background release polling.
+Read [the privacy boundary](Docs/PRIVACY.md) before sharing diagnostics. Bug reports must remove plan contents, real repository names, absolute personal paths, credentials, and unreviewed command output.
 
-## License
+Use [GitHub Issues](https://github.com/zergzorg/plansbar/issues) for reproducible bugs and [GitHub Releases](https://github.com/zergzorg/plansbar/releases) for explicit update checks. PlansBar performs no background release polling.
 
-MIT. See [LICENSE](LICENSE).
+## Status and contributing
+
+Release milestones are `0.1` source preview, `0.2` source-built beta, and `1.0` source-built release. See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [Docs/ARCHITECTURE.md](Docs/ARCHITECTURE.md).
+
+PlansBar is licensed under the [MIT License](LICENSE).

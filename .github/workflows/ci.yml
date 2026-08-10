@@ -18,6 +18,8 @@ jobs:
         run: swift test
       - name: Verify public fixtures
         run: Scripts/verify-fixtures.sh
+      - name: Verify README translations
+        run: Scripts/check-i18n.sh
       - name: Build app bundle
         run: Scripts/build-app.sh
       - name: Audit public tree
