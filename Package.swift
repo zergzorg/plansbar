@@ -16,6 +16,7 @@ let package = Package(
             name: "PlansBarCLI",
             dependencies: ["PlansCore"],
             path: "Sources/plansbar-cli"
-        )
+        ),
+        .testTarget(name: "PlansCoreTests", dependencies: ["PlansCore"])
     ]
 )
