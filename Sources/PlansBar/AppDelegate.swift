@@ -19,16 +19,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var keyMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let isMarketingPreview = CommandLine.arguments.contains("--marketing-preview")
         preferences = Preferences()
         agentPreferences = AgentPreferences()
-        accessStore = RepositoryAccessStore()
-        client = IndexClient(accessStore: accessStore)
+        accessStore = RepositoryAccessStore(loadStored: !isMarketingPreview)
+        client = IndexClient(
+            accessStore: accessStore,
+            initialSnapshot: isMarketingPreview ? .marketingPreview : nil
+        )
 
         setupStatusItem()
         setupPanel()
         setupKeyboardShortcuts()
         observeState()
-        Task { await client.refresh() }
+        if isMarketingPreview {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(300))
+                showPanel()
+            }
+        } else {
+            Task { await client.refresh() }
+        }
     }
 
     // MARK: - Строка меню
@@ -102,7 +113,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard let button = statusItem.button,
               let screen = button.window?.screen ?? NSScreen.main else { return }
 
-        let buttonRect = button.window?.convertToScreen(button.convert(button.bounds, to: nil)) ?? .zero
+        let buttonRect = button.window?.convertToScreen(button.convert(button.bounds, to: nil))
+            ?? NSRect(x: screen.visibleFrame.midX, y: screen.visibleFrame.maxY, width: 1, height: 1)
         let maximumHeight = max(
             minimumPanelHeight,
             buttonRect.minY - screen.visibleFrame.minY - 12

@@ -40,20 +40,27 @@ final class IndexClient: ObservableObject {
 
     private let accessStore: RepositoryAccessStore
     private let cacheURL: URL
+    private let refreshEnabled: Bool
     private var cancellable: AnyCancellable?
     private var refreshRequested = false
 
-    init(accessStore: RepositoryAccessStore) {
+    init(accessStore: RepositoryAccessStore, initialSnapshot: Snapshot? = nil) {
         self.accessStore = accessStore
+        refreshEnabled = initialSnapshot == nil
         cacheURL = accessStore.applicationSupportURL
             .appending(path: "snapshot.json", directoryHint: .notDirectory)
-        let roots = accessStore.resolvedRepositories()
-        if let cached = SnapshotCache.load(
-            from: cacheURL,
-            expectedRepositorySet: roots.map(\.registrationID)
-        ) {
-            snapshot = Snapshot(cached)
+        if let initialSnapshot {
+            snapshot = initialSnapshot
             connection = .connected
+        } else {
+            let roots = accessStore.resolvedRepositories()
+            if let cached = SnapshotCache.load(
+                from: cacheURL,
+                expectedRepositorySet: roots.map(\.registrationID)
+            ) {
+                snapshot = Snapshot(cached)
+                connection = .connected
+            }
         }
         cancellable = accessStore.$repositories
             .dropFirst()
@@ -63,6 +70,7 @@ final class IndexClient: ObservableObject {
     }
 
     func refresh() async {
+        guard refreshEnabled else { return }
         if isRefreshing {
             refreshRequested = true
             return

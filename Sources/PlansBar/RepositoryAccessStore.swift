@@ -21,13 +21,13 @@ final class RepositoryAccessStore: ObservableObject {
     let applicationSupportURL: URL
     private let storageURL: URL
 
-    init() {
+    init(loadStored: Bool = true) {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         applicationSupportURL = base
             .appending(path: "io.github.zergzorg.plansbar", directoryHint: .isDirectory)
         storageURL = applicationSupportURL
             .appending(path: "repositories.json", directoryHint: .notDirectory)
-        load()
+        if loadStored { load() }
     }
 
     func chooseRepositories() -> Bool {

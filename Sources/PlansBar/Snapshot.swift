@@ -16,6 +16,103 @@ struct Snapshot {
         generatedAt = snapshot.generatedAt
         repositories = snapshot.validations.map(Repository.init)
     }
+
+    static var marketingPreview: Snapshot {
+        let roots = [
+            previewRepository(
+                name: "sample-api",
+                plans: [
+                    previewPlan(
+                        repository: "sample-api",
+                        bucket: .active,
+                        title: "Ship the public beta",
+                        status: "active",
+                        done: 3,
+                        total: 5,
+                        nextStep: "Run the clean-clone build on macOS 14."
+                    ),
+                    previewPlan(
+                        repository: "sample-api",
+                        bucket: .backlog,
+                        title: "Add release health checks",
+                        status: "backlog",
+                        done: 0,
+                        total: 4,
+                        nextStep: "Define the first health signal."
+                    )
+                ]
+            ),
+            previewRepository(
+                name: "mobile-app",
+                plans: [
+                    previewPlan(
+                        repository: "mobile-app",
+                        bucket: .active,
+                        title: "Prepare store screenshots",
+                        status: "active",
+                        done: 4,
+                        total: 4,
+                        nextStep: nil
+                    ),
+                    previewPlan(
+                        repository: "mobile-app",
+                        bucket: .active,
+                        title: "Improve offline sync",
+                        status: "blocked",
+                        done: 2,
+                        total: 6,
+                        nextStep: "Confirm the conflict-resolution contract."
+                    )
+                ]
+            )
+        ]
+        return Snapshot(PlansSnapshot(repositorySet: ["marketing-preview"], validations: roots))
+    }
+
+    private static func previewRepository(
+        name: String,
+        plans: [PlanRecord]
+    ) -> RepositoryValidation {
+        RepositoryValidation(
+            identity: RepositoryIdentity(rawValue: "preview:\(name)", kind: .localRegistration),
+            rootURL: URL(fileURLWithPath: "/Projects/\(name)", isDirectory: true),
+            name: name,
+            state: .ready,
+            plans: plans
+        )
+    }
+
+    private static func previewPlan(
+        repository: String,
+        bucket: PlanBucket,
+        title: String,
+        status: String,
+        done: Int,
+        total: Int,
+        nextStep: String?
+    ) -> PlanRecord {
+        let slug = title.lowercased().replacingOccurrences(of: " ", with: "-")
+        let relativePath = "docs/plans/\(bucket.rawValue)/2026-08-10-\(slug).md"
+        return PlanRecord(
+            relativePath: relativePath,
+            absolutePath: "/Projects/\(repository)/\(relativePath)",
+            bucket: bucket,
+            parseState: .parsed,
+            planVersion: "1",
+            title: title,
+            status: status,
+            created: "2026-08-10",
+            completed: "metadata_missing",
+            scope: "Synthetic marketing preview",
+            checkboxTotal: total,
+            checkboxDone: done,
+            progressPercent: Int((Double(done) / Double(total) * 100).rounded()),
+            nextOpenStep: nextStep,
+            lintErrors: [],
+            lintWarnings: status == "blocked" ? ["status_blocked"] : [],
+            daysSinceModified: status == "blocked" ? 8 : 1
+        )
+    }
 }
 
 struct Repository: Identifiable {
