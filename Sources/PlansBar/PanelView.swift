@@ -466,6 +466,20 @@ struct PanelView: View {
 
             Spacer()
 
+            Menu {
+                Text("PlansBar \(AppInfo.versionLabel)")
+                Button("Check Releases") {
+                    NSWorkspace.shared.open(AppInfo.releasesURL)
+                }
+            } label: {
+                Text("v\(AppInfo.versionLabel)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .accessibilityLabel("PlansBar version \(AppInfo.versionLabel)")
+
             Button("Quit") {
                 NSApplication.shared.terminate(nil)
             }

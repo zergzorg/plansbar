@@ -2,7 +2,7 @@ import Darwin
 import Foundation
 import PlansCore
 
-let version = "0.1.0"
+let version = PlansBarVersion.current
 let arguments = Array(CommandLine.arguments.dropFirst())
 
 func value(after option: String) -> String? {

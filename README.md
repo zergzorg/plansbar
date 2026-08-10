@@ -59,7 +59,9 @@ The same checks are available from the built CLI:
 
 ## Status
 
-The source preview now includes a persistent repository picker, strict Plan Format v1 validation, a versioned local cache, cross-repository search, and preparation prompts for repositories that need setup or migration. Agent launching, filesystem watching, and release signing remain in progress.
+The source preview now includes a persistent repository picker, strict Plan Format v1 validation, a versioned local cache, cross-repository search, preparation prompts, and safe Codex/Claude handoff. Filesystem watching, optional agent path selection, and release signing remain in progress.
+
+Release milestones: `0.1` source preview, `0.2` source-built beta, and `1.0` source-built release. Use the in-app **Check Releases** link for explicit update checks; PlansBar performs no background release polling.
 
 ## License
 

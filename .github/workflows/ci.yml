@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build
+        run: swift build -c release
+      - name: Test
+        run: swift test
+      - name: Verify public fixtures
+        run: Scripts/verify-fixtures.sh
+      - name: Build app bundle
+        run: Scripts/build-app.sh
+      - name: Audit public tree
+        run: Scripts/verify-public-tree.sh
+      - name: Verify signature
+        run: codesign --verify --deep --strict build/PlansBar.app

@@ -6,6 +6,8 @@ cd "$(dirname "$0")/.."
 APP_NAME="PlansBar"
 APP_PRODUCT="PlansBarApp"
 BUNDLE_ID="io.github.zergzorg.plansbar"
+APP_VERSION="0.1.0"
+BUILD_IDENTIFIER="$(git rev-parse --short=12 HEAD 2>/dev/null || printf local)"
 BUNDLE="build/${APP_NAME}.app"
 ICON_SOURCE="Resources/AppIcon.png"
 ICONSET="build/AppIcon.iconset"
@@ -47,9 +49,11 @@ cat > "${BUNDLE}/Contents/Info.plist" <<PLIST
     <key>CFBundleIdentifier</key>
     <string>${BUNDLE_ID}</string>
     <key>CFBundleVersion</key>
-    <string>1.0</string>
+    <string>1</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>${APP_VERSION}</string>
+    <key>PlansBarBuildIdentifier</key>
+    <string>${BUILD_IDENTIFIER}</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>
