@@ -35,12 +35,13 @@ enum AgentLauncher {
     static func launch(
         adapter: AgentAdapter,
         repositoryPath: String,
-        prompt: String
+        prompt: String,
+        executablePath: String? = nil
     ) async throws {
         guard adapter == .codex || adapter == .claude else {
             throw AgentLaunchError.unsupportedAdapter
         }
-        let executable = try executableURL(for: adapter)
+        let executable = try executableURL(for: adapter, overridePath: executablePath)
         try await Task.detached(priority: .userInitiated) {
             try ensureCleanRepository(at: repositoryPath)
         }.value
@@ -63,7 +64,16 @@ enum AgentLauncher {
         }
     }
 
-    private static func executableURL(for adapter: AgentAdapter) throws -> URL {
+    private static func executableURL(
+        for adapter: AgentAdapter,
+        overridePath: String?
+    ) throws -> URL {
+        if let overridePath {
+            guard FileManager.default.isExecutableFile(atPath: overridePath) else {
+                throw AgentLaunchError.executableMissing(adapter.title)
+            }
+            return URL(fileURLWithPath: overridePath)
+        }
         let name = adapter == .codex ? "codex" : "claude"
         let home = FileManager.default.homeDirectoryForCurrentUser
         let candidates = [

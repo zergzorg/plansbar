@@ -159,6 +159,9 @@ struct PanelView: View {
                             Text(adapter.title).tag(adapter)
                         }
                     }
+                    Divider()
+                    executableMenuItem(for: .codex)
+                    executableMenuItem(for: .claude)
                 } label: {
                     Image(systemName: "terminal")
                 }
@@ -550,7 +553,11 @@ struct PanelView: View {
             ? "Copying prompt for \(task.repo)…"
             : "Opening \(adapter.title)…"
         Task {
-            actionMessage = await client.perform(task, with: adapter)
+            actionMessage = await client.perform(
+                task,
+                with: adapter,
+                executablePath: agentPreferences.executablePath(for: adapter)
+            )
             try? await Task.sleep(for: .seconds(4))
             actionMessage = ""
         }
@@ -559,7 +566,11 @@ struct PanelView: View {
     private func runPreparation(_ issue: RepositoryIssue, with adapter: AgentAdapter) {
         actionMessage = "Opening \(adapter.title)…"
         Task {
-            actionMessage = await client.performPreparation(issue, with: adapter)
+            actionMessage = await client.performPreparation(
+                issue,
+                with: adapter,
+                executablePath: agentPreferences.executablePath(for: adapter)
+            )
             try? await Task.sleep(for: .seconds(4))
             actionMessage = ""
         }
@@ -575,10 +586,29 @@ struct PanelView: View {
             actionMessage = await client.performNewIdea(
                 repository: repository,
                 idea: idea,
-                with: adapter
+                with: adapter,
+                executablePath: agentPreferences.executablePath(for: adapter)
             )
             try? await Task.sleep(for: .seconds(4))
             actionMessage = ""
+        }
+    }
+
+    @ViewBuilder
+    private func executableMenuItem(for adapter: AgentAdapter) -> some View {
+        if agentPreferences.executablePath(for: adapter) == nil {
+            Button("Choose \(adapter.title) Executable…") {
+                agentPreferences.chooseExecutable(for: adapter)
+            }
+        } else {
+            Menu("\(adapter.title) Executable") {
+                Button("Choose Another…") {
+                    agentPreferences.chooseExecutable(for: adapter)
+                }
+                Button("Use Automatic Detection") {
+                    agentPreferences.clearExecutable(for: adapter)
+                }
+            }
         }
     }
 

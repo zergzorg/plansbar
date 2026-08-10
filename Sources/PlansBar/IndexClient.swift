@@ -136,13 +136,18 @@ final class IndexClient: ObservableObject {
         return "Prompt copied"
     }
 
-    func perform(_ task: PlanTask, with adapter: AgentAdapter) async -> String {
+    func perform(
+        _ task: PlanTask,
+        with adapter: AgentAdapter,
+        executablePath: String?
+    ) async -> String {
         if adapter == .copyOnly { return await copyPrompt(task) }
         do {
             try await AgentLauncher.launch(
                 adapter: adapter,
                 repositoryPath: task.repoPath,
-                prompt: task.portablePrompt
+                prompt: task.portablePrompt,
+                executablePath: executablePath
             )
             return "Opened \(adapter.title) in Terminal"
         } catch {
@@ -157,14 +162,19 @@ final class IndexClient: ObservableObject {
         return "Preparation prompt copied"
     }
 
-    func performPreparation(_ issue: RepositoryIssue, with adapter: AgentAdapter) async -> String {
+    func performPreparation(
+        _ issue: RepositoryIssue,
+        with adapter: AgentAdapter,
+        executablePath: String?
+    ) async -> String {
         if adapter == .copyOnly { return copyPreparationPrompt(issue) }
         guard let prompt = issue.preparationPrompt else { return "Repository is not accessible" }
         do {
             try await AgentLauncher.launch(
                 adapter: adapter,
                 repositoryPath: issue.path,
-                prompt: prompt
+                prompt: prompt,
+                executablePath: executablePath
             )
             return "Opened \(adapter.title) in Terminal"
         } catch {
@@ -175,7 +185,8 @@ final class IndexClient: ObservableObject {
     func performNewIdea(
         repository: RegisteredRepository,
         idea: String,
-        with adapter: AgentAdapter
+        with adapter: AgentAdapter,
+        executablePath: String?
     ) async -> String {
         let prompt = AgentPrompt.makeNewIdea(NewIdeaPromptInput(
             repositoryName: repository.name,
@@ -191,7 +202,8 @@ final class IndexClient: ObservableObject {
             try await AgentLauncher.launch(
                 adapter: adapter,
                 repositoryPath: repository.path,
-                prompt: prompt
+                prompt: prompt,
+                executablePath: executablePath
             )
             return "Opened \(adapter.title) in Terminal"
         } catch {
