@@ -9,9 +9,13 @@ permissions:
 
 jobs:
   macos:
-    runs-on: macos-14
+    # Package.swift uses Swift tools 6.0, which needs Xcode 16 or newer.
+    # The app itself still targets macOS 14 through the package platforms.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v6
+      - name: Report toolchain
+        run: swift --version
       - name: Build
         run: swift build -c release
       - name: Test
