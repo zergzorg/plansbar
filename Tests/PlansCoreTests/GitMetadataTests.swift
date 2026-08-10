@@ -31,10 +31,13 @@ final class GitMetadataTests: XCTestCase {
         )
     }
 
+    /// Относительный или отсутствующий configured path не принимается,
+    /// но и не отключает Git: probe продолжает перебирать системных кандидатов.
     func testProbeRejectsRelativeAndMissingExecutables() {
-        XCTAssertNil(GitCapability.probe(configuredPath: "git").executablePath)
-        XCTAssertNil(
-            GitCapability.probe(configuredPath: "/nonexistent/git").executablePath
+        XCTAssertNotEqual(GitCapability.probe(configuredPath: "git").executablePath, "git")
+        XCTAssertNotEqual(
+            GitCapability.probe(configuredPath: "/nonexistent/git").executablePath,
+            "/nonexistent/git"
         )
     }
 

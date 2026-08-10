@@ -13,6 +13,8 @@ public enum RepositoryPreparationPrompt {
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        // Публичный контракт промпта и golden fixtures используют snake_case.
+        encoder.keyEncodingStrategy = .convertToSnakeCase
         guard let data = try? encoder.encode(input), let json = String(data: data, encoding: .utf8) else {
             return nil
         }
