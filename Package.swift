@@ -6,8 +6,8 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "PlansCore", targets: ["PlansCore"]),
-        .executable(name: "PlansBar", targets: ["PlansBar"]),
-        .executable(name: "plansbar-cli", targets: ["PlansBarCLI"])
+        .executable(name: "PlansBarApp", targets: ["PlansBar"]),
+        .executable(name: "plansbar", targets: ["PlansBarCLI"])
     ],
     targets: [
         .target(name: "PlansCore"),
@@ -17,6 +17,10 @@ let package = Package(
             dependencies: ["PlansCore"],
             path: "Sources/plansbar-cli"
         ),
-        .testTarget(name: "PlansCoreTests", dependencies: ["PlansCore"])
+        .testTarget(
+            name: "PlansCoreTests",
+            dependencies: ["PlansCore"],
+            resources: [.copy("Fixtures")]
+        )
     ]
 )

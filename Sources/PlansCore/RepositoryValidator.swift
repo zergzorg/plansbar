@@ -1,0 +1,148 @@
+import Foundation
+
+public enum RepositoryValidator {
+    private static let excludedDirectories: Set<String> = [
+        "artifacts", "templates", "assets", "temp_files", ".reviews"
+    ]
+
+    public static func validate(
+        rootURL: URL,
+        fallbackIdentity: String? = nil,
+        now: Date = Date()
+    ) -> RepositoryValidation {
+        let root = rootURL.standardizedFileURL.resolvingSymlinksInPath()
+        let identity = RepositoryIdentity.resolve(rootURL: root, fallback: fallbackIdentity)
+        let name = root.lastPathComponent
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirectory),
+              isDirectory.boolValue,
+              FileManager.default.isReadableFile(atPath: root.path)
+        else {
+            return RepositoryValidation(
+                identity: identity,
+                rootURL: root,
+                name: name,
+                state: .inaccessible
+            )
+        }
+
+        let plansRoot = root.appending(path: "docs/plans", directoryHint: .isDirectory)
+        let missingPaths = PlanBucket.allCases.compactMap { bucket -> String? in
+            let relative = "docs/plans/\(bucket.rawValue)"
+            let url = root.appending(path: relative, directoryHint: .isDirectory)
+            var bucketIsDirectory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: url.path, isDirectory: &bucketIsDirectory)
+                && bucketIsDirectory.boolValue ? nil : relative
+        }
+        guard missingPaths.isEmpty else {
+            return RepositoryValidation(
+                identity: identity,
+                rootURL: root,
+                name: name,
+                state: .missingStructure,
+                missingPaths: missingPaths
+            )
+        }
+
+        var plans: [PlanRecord] = []
+        do {
+            for bucket in PlanBucket.allCases {
+                let bucketURL = plansRoot.appending(path: bucket.rawValue, directoryHint: .isDirectory)
+                plans.append(contentsOf: try scanBucket(bucketURL, rootURL: root, bucket: bucket, now: now))
+            }
+        } catch {
+            return RepositoryValidation(
+                identity: identity,
+                rootURL: root,
+                name: name,
+                state: .inaccessible
+            )
+        }
+        plans.sort { $0.relativePath < $1.relativePath }
+
+        return RepositoryValidation(
+            identity: identity,
+            rootURL: root,
+            name: name,
+            state: plans.allSatisfy({ $0.parseState == .parsed }) ? .ready : .invalidPlans,
+            plans: plans
+        )
+    }
+
+    private static func scanBucket(
+        _ bucketURL: URL,
+        rootURL: URL,
+        bucket: PlanBucket,
+        now: Date
+    ) throws -> [PlanRecord] {
+        var plans: [PlanRecord] = []
+        try scanDirectory(bucketURL, rootURL: rootURL, bucket: bucket, now: now, plans: &plans)
+        return plans
+    }
+
+    private static func scanDirectory(
+        _ directoryURL: URL,
+        rootURL: URL,
+        bucket: PlanBucket,
+        now: Date,
+        plans: inout [PlanRecord]
+    ) throws {
+        let keys: Set<URLResourceKey> = [
+            .isDirectoryKey, .isRegularFileKey, .isHiddenKey, .isSymbolicLinkKey
+        ]
+        let entries = try FileManager.default.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles]
+        )
+
+        for entryURL in entries {
+            let values = try entryURL.resourceValues(forKeys: keys)
+            if values.isHidden == true || values.isSymbolicLink == true { continue }
+            if values.isDirectory == true {
+                if !excludedDirectories.contains(entryURL.lastPathComponent) {
+                    try scanDirectory(entryURL, rootURL: rootURL, bucket: bucket, now: now, plans: &plans)
+                }
+                continue
+            }
+            guard values.isRegularFile == true else { continue }
+            let file = entryURL.lastPathComponent
+            if file == "README.md" || file == ".gitkeep" || file.hasPrefix(".") { continue }
+            let extensionName = entryURL.pathExtension.lowercased()
+            guard extensionName == "md" || extensionName == "html" else { continue }
+
+            let prefix = rootURL.path.hasSuffix("/") ? rootURL.path : rootURL.path + "/"
+            let relativePath = entryURL.path.hasPrefix(prefix)
+                ? String(entryURL.path.dropFirst(prefix.count))
+                : entryURL.lastPathComponent
+            if extensionName == "md" {
+                plans.append(PlanParser.parse(
+                    fileURL: entryURL,
+                    relativePath: relativePath,
+                    bucket: bucket,
+                    now: now
+                ))
+            } else {
+                plans.append(PlanRecord(
+                    relativePath: relativePath,
+                    absolutePath: entryURL.path,
+                    bucket: bucket,
+                    parseState: .invalidPlan,
+                    planVersion: "metadata_missing",
+                    title: entryURL.deletingPathExtension().lastPathComponent,
+                    status: "metadata_missing",
+                    created: "metadata_missing",
+                    completed: "metadata_missing",
+                    scope: "metadata_missing",
+                    checkboxTotal: 0,
+                    checkboxDone: 0,
+                    progressPercent: nil,
+                    nextOpenStep: nil,
+                    lintErrors: ["unsupported_plan_version"],
+                    lintWarnings: [],
+                    daysSinceModified: nil
+                ))
+            }
+        }
+    }
+}

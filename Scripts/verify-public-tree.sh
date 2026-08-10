@@ -7,6 +7,21 @@ BUNDLE_PATH="${1:-build/PlansBar.app}"
 EXPECTED_BUNDLE_ID="${PLANSBAR_EXPECTED_BUNDLE_ID:-io.github.zergzorg.plansbar}"
 failures=0
 
+candidate_files() {
+    git ls-files -z --cached --others --exclude-standard
+}
+
+contains_literal() {
+    local pattern="$1"
+    local file
+    while IFS= read -r -d '' file; do
+        if grep -I -F -q -- "$pattern" "$file" 2>/dev/null; then
+            return 0
+        fi
+    done < <(candidate_files)
+    return 1
+}
+
 fail() {
     printf 'ERROR: %s\n' "$1" >&2
     failures=1
@@ -24,7 +39,7 @@ scan_literal() {
             printf 'ERROR: %s in %s\n%s\n' "$label" "$file" "$matches" >&2
             failures=1
         fi
-    done < <(git ls-files -z)
+    done < <(candidate_files)
 
     if [[ -d "$BUNDLE_PATH" ]]; then
         while IFS= read -r -d '' file; do
@@ -64,20 +79,22 @@ if [[ -n "${PLANSBAR_PRIVATE_TERMS_FILE:-}" ]]; then
     fi
 fi
 
-tracked_cache="$(git ls-files | grep -E '(^|/)(node_modules|dist|coverage|build|\.build|\.DS_Store)(/|$)' || true)"
-if [[ -n "$tracked_cache" ]]; then
-    printf 'ERROR: tracked cache or build output:\n%s\n' "$tracked_cache" >&2
+publishable_cache="$(git ls-files --cached --others --exclude-standard | grep -E '(^|/)(node_modules|dist|coverage|build|\.build|\.DS_Store)(/|$)' || true)"
+if [[ -n "$publishable_cache" ]]; then
+    printf 'ERROR: publishable cache or build output:\n%s\n' "$publishable_cache" >&2
     failures=1
 fi
 
-secret_matches="$(git grep -n -I -E '(AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----)' -- . 2>/dev/null || true)"
+secret_matches="$(while IFS= read -r -d '' file; do
+    grep -I -n -E '(AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----)' "$file" 2>/dev/null || true
+done < <(candidate_files))"
 if [[ -n "$secret_matches" ]]; then
-    printf 'ERROR: possible secret in tracked tree:\n%s\n' "$secret_matches" >&2
+    printf 'ERROR: possible secret in publishable tree:\n%s\n' "$secret_matches" >&2
     failures=1
 fi
 
-if ! git grep -I -F -q -- "$EXPECTED_BUNDLE_ID" -- .; then
-    fail "expected bundle identifier is absent from the tracked tree"
+if ! contains_literal "$EXPECTED_BUNDLE_ID"; then
+    fail "expected bundle identifier is absent from the publishable tree"
 fi
 
 if [[ ! -d "$BUNDLE_PATH" ]]; then

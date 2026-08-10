@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "path": "docs/plans/active/2026-08-10-broken-fence.md",
+  "bucket": "active",
+  "format": "v1",
+  "parse_state": "invalid_plan",
+  "plan_version": "1",
+  "title": "Broken fence",
+  "status": "active",
+  "created": "2026-08-10",
+  "completed": "metadata_missing",
+  "scope": "Demonstrate an unclosed code fence",
+  "checkbox_total": 0,
+  "checkbox_done": 0,
+  "progress_percent": null,
+  "next_open_step": null,
+  "lint_errors": [
+    "unclosed_code_fence",
+    "missing_required_section"
+  ],
+  "lint_warnings": []
+}

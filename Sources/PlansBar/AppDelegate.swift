@@ -12,16 +12,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var panel: NSPanel!
     private var client: IndexClient!
     private var preferences: Preferences!
+    private var accessStore: RepositoryAccessStore!
     private var cancellables: Set<AnyCancellable> = []
-    private var monitor: Any?
+    private var clickMonitor: Any?
+    private var keyMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        client = IndexClient()
         preferences = Preferences()
+        accessStore = RepositoryAccessStore()
+        client = IndexClient(accessStore: accessStore)
 
         setupStatusItem()
         setupPanel()
+        setupKeyboardShortcuts()
         observeState()
+        Task { await client.refresh() }
     }
 
     // MARK: - Строка меню
@@ -45,7 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .sink { [weak self] snapshot, hidden in
                 guard let self else { return }
                 let tasks = snapshot.repositories
-                    .filter { !hidden.contains($0.name) }
+                    .filter { !hidden.contains($0.id) }
                     .flatMap(\.tasks)
                     .filter(\.isActive)
                 let attention = tasks.filter(\.needsAttention).count
@@ -57,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: - Панель
 
     private func setupPanel() {
-        let content = PanelView(client: client, preferences: preferences)
+        let content = PanelView(client: client, preferences: preferences, accessStore: accessStore)
         let hosting = NSHostingController(rootView: content)
 
         panel = NSPanel(
@@ -116,7 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
 
-        monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             Task { @MainActor in self?.hidePanel() }
         }
 
@@ -130,10 +135,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func hidePanel() {
         panel.orderOut(nil)
-        if let monitor {
-            NSEvent.removeMonitor(monitor)
-            self.monitor = nil
+        if let clickMonitor {
+            NSEvent.removeMonitor(clickMonitor)
+            self.clickMonitor = nil
         }
     }
 
+    private func setupKeyboardShortcuts() {
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let commandF = modifiers == .command && event.charactersIgnoringModifiers == "f"
+            let slash = modifiers.isEmpty
+                && event.characters == "/"
+                && !(event.window?.firstResponder is NSTextView)
+            guard commandF || slash else { return event }
+            Task { @MainActor in
+                guard let self else { return }
+                if !self.panel.isVisible { self.showPanel() }
+                NotificationCenter.default.post(name: .focusPlansSearch, object: nil)
+            }
+            return nil
+        }
+    }
+
+}
+
+extension Notification.Name {
+    static let focusPlansSearch = Notification.Name("focusPlansSearch")
 }

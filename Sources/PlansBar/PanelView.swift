@@ -1,10 +1,12 @@
 import SwiftUI
+import PlansCore
 
 struct PanelView: View {
     static let width: CGFloat = 480
 
     @ObservedObject var client: IndexClient
     @ObservedObject var preferences: Preferences
+    @ObservedObject var accessStore: RepositoryAccessStore
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("compactMode") private var isCompact = false
@@ -20,23 +22,44 @@ struct PanelView: View {
     private var repositories: [Repository] {
         client.snapshot.repositories
             .compactMap { repo in
-                let tasks = repo.tasks.filter {
-                    $0.isActive && matchesSearch($0, repository: repo.name)
-                }
-                guard !tasks.isEmpty, preferences.isVisible(repo.name) else { return nil }
-                return Repository(name: repo.name, path: repo.path, tasks: tasks)
+                let tasks = repo.tasks.filter(\.isActive)
+                guard !tasks.isEmpty else { return nil }
+                guard preferences.isVisible(repo.id) else { return nil }
+                return Repository(
+                    identity: repo.identity,
+                    name: repo.name,
+                    path: repo.path,
+                    tasks: tasks
+                )
             }
             .sorted { $0.name < $1.name }
     }
 
-    private var totalPlans: Int { repositories.reduce(0) { $0 + $1.tasks.count } }
+    private var searchResults: [PlanTask] {
+        guard !searchTerm.isEmpty else { return [] }
+        return client.snapshot.repositories
+            .flatMap(\.tasks)
+            .filter { searchRank($0) != nil }
+            .sorted(by: sortTasks)
+    }
+
+    private var visibleTasks: [PlanTask] {
+        searchTerm.isEmpty ? repositories.flatMap(\.tasks) : searchResults
+    }
+
+    private var totalPlans: Int { visibleTasks.count }
     private var attentionCount: Int {
-        repositories.reduce(0) { $0 + $1.tasks.filter(\.needsAttention).count }
+        visibleTasks.filter(\.needsAttention).count
     }
     private var repositoryChoices: [Repository] {
         client.snapshot.repositories
             .map { repo in
-                Repository(name: repo.name, path: repo.path, tasks: repo.tasks.filter(\.isActive))
+                Repository(
+                    identity: repo.identity,
+                    name: repo.name,
+                    path: repo.path,
+                    tasks: repo.tasks.filter(\.isActive)
+                )
             }
             .filter { !$0.tasks.isEmpty }
             .sorted { $0.name < $1.name }
@@ -55,6 +78,9 @@ struct PanelView: View {
         .frame(maxHeight: .infinity)
         .background(.regularMaterial)
         .ignoresSafeArea(.container, edges: .top)
+        .onReceive(NotificationCenter.default.publisher(for: .focusPlansSearch)) { _ in
+            isSearchFocused = true
+        }
     }
 
     // MARK: - Header
@@ -62,7 +88,7 @@ struct PanelView: View {
     private var header: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                Text("Plans in progress")
+                Text("Plans")
                     .font(.system(size: 14, weight: .semibold))
                     .lineLimit(1)
                 summary
@@ -82,10 +108,30 @@ struct PanelView: View {
                 .help(isCompact ? "Switch to regular view" : "Show more plans")
 
                 Menu {
+                    Button("Add Repository…", action: addRepositories)
+                    if !accessStore.repositories.isEmpty {
+                        Divider()
+                        Menu("Remove Repository") {
+                            ForEach(accessStore.repositories) { repository in
+                                Button(repository.path, role: .destructive) {
+                                    accessStore.remove(repository)
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "folder.badge.plus")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .accessibilityLabel("Manage repositories")
+                .help("Add or remove repositories")
+
+                Menu {
                     ForEach(repositoryChoices) { repo in
                         Toggle(isOn: Binding(
-                            get: { preferences.isVisible(repo.name) },
-                            set: { _ in preferences.toggle(repo.name) }
+                            get: { preferences.isVisible(repo.id) },
+                            set: { _ in preferences.toggle(repo.id) }
                         )) {
                             Text("\(repo.name) · \(repo.tasks.count)")
                         }
@@ -131,6 +177,7 @@ struct PanelView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 11))
                 .focused($isSearchFocused)
+                .accessibilityLabel("Search plans by title, repository, or next step")
                 .onExitCommand {
                     searchQuery = ""
                     isSearchFocused = false
@@ -189,28 +236,32 @@ struct PanelView: View {
 
     @ViewBuilder
     private var content: some View {
-        if repositories.isEmpty {
+        if !searchTerm.isEmpty {
+            if searchResults.isEmpty {
+                emptyState
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(searchResults) { task in
+                            planRow(task, showsContext: true)
+                        }
+                    }
+                }
+            }
+        } else if repositories.isEmpty && client.repositoryIssues.isEmpty {
             emptyState
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    ForEach(client.repositoryIssues) { issue in
+                        repositoryIssue(issue)
+                        Divider().padding(.leading, 14).opacity(0.5)
+                    }
+
                     ForEach(repositories) { repo in
                         Section {
                             ForEach(repo.tasks.sorted(by: sortTasks)) { task in
-                                PlanRowView(
-                                    task: task,
-                                    isExpanded: expandedTask == task.id,
-                                    isCompact: isCompact,
-                                    onToggle: {
-                                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) {
-                                            expandedTask = expandedTask == task.id ? nil : task.id
-                                        }
-                                    },
-                                    onRun: { run(task) }
-                                )
-                                Divider()
-                                    .padding(.leading, 14)
-                                    .opacity(0.5)
+                                planRow(task)
                             }
                         } header: {
                             repoHeader(repo)
@@ -219,6 +270,77 @@ struct PanelView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func planRow(_ task: PlanTask, showsContext: Bool = false) -> some View {
+        VStack(spacing: 0) {
+            PlanRowView(
+                task: task,
+                isExpanded: expandedTask == task.id,
+                isCompact: isCompact,
+                showsContext: showsContext,
+                onToggle: {
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) {
+                        expandedTask = expandedTask == task.id ? nil : task.id
+                    }
+                },
+                onRun: { run(task) }
+            )
+            Divider()
+                .padding(.leading, 14)
+                .opacity(0.5)
+        }
+    }
+
+    private func repositoryIssue(_ issue: RepositoryIssue) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Image(systemName: issue.state == .inaccessible ? "exclamationmark.triangle" : "wrench.and.screwdriver")
+                    .foregroundStyle(.orange)
+                Text(issue.name)
+                    .font(.system(size: 12, weight: .semibold))
+                Spacer()
+                Text(issue.state.rawValue.replacingOccurrences(of: "_", with: " "))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(issueDescription(issue))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 10) {
+                if issue.preparationPrompt != nil {
+                    Button("Copy preparation prompt") {
+                        actionMessage = client.copyPreparationPrompt(issue)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+
+                Button("Remove") {
+                    removeRepository(path: issue.path)
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private func issueDescription(_ issue: RepositoryIssue) -> String {
+        switch issue.state {
+        case .missingStructure:
+            return "Missing \(issue.missingPaths.joined(separator: ", ")). PlansBar will not create files itself."
+        case .invalidPlans:
+            return "\(issue.invalidPlanCount) plan candidate\(issue.invalidPlanCount == 1 ? "" : "s") must be converted to Plan Format v1."
+        case .inaccessible:
+            return "The repository cannot be read. Re-add it or check its location and permissions."
+        case .ready:
+            return "Repository is ready."
         }
     }
 
@@ -248,6 +370,13 @@ struct PanelView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+
+            if accessStore.repositories.isEmpty && searchTerm.isEmpty {
+                Button("Add Repository…", action: addRepositories)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .padding(.top, 6)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.vertical, 34)
@@ -256,8 +385,9 @@ struct PanelView: View {
 
     private var emptyIcon: String {
         if !searchTerm.isEmpty { return "magnifyingglass" }
+        if accessStore.repositories.isEmpty { return "folder.badge.plus" }
         if case .connected = client.connection { return "checkmark.circle" }
-        return "antenna.radiowaves.left.and.right.slash"
+        return "exclamationmark.triangle"
     }
 
     private var emptyTitle: String {
@@ -265,7 +395,7 @@ struct PanelView: View {
         switch client.connection {
         case .connected: return "No active plans"
         case .starting: return "Starting index"
-        case .unavailable: return "Source preview"
+        case .unavailable: return accessStore.repositories.isEmpty ? "Add a repository" : "Repositories unavailable"
         }
     }
 
@@ -323,6 +453,15 @@ struct PanelView: View {
 
     // MARK: - Actions
 
+    private func addRepositories() {
+        _ = accessStore.chooseRepositories()
+    }
+
+    private func removeRepository(path: String) {
+        guard let repository = accessStore.repositories.first(where: { $0.path == path }) else { return }
+        accessStore.remove(repository)
+    }
+
     private func run(_ task: PlanTask) {
         actionMessage = "Copying prompt for \(task.repo)…"
         Task {
@@ -332,13 +471,24 @@ struct PanelView: View {
         }
     }
 
-    private func matchesSearch(_ task: PlanTask, repository: String) -> Bool {
-        searchTerm.isEmpty
-            || task.title.localizedCaseInsensitiveContains(searchTerm)
-            || repository.localizedCaseInsensitiveContains(searchTerm)
+    private func searchRank(_ task: PlanTask) -> Int? {
+        PlanSearch.rank(
+            query: searchTerm,
+            title: task.title,
+            repository: task.repo,
+            nextStep: task.nextOpenStep
+        )
     }
 
     private func sortTasks(_ left: PlanTask, _ right: PlanTask) -> Bool {
+        if !searchTerm.isEmpty {
+            let leftRank = searchRank(left) ?? Int.max
+            let rightRank = searchRank(right) ?? Int.max
+            if leftRank != rightRank { return leftRank < rightRank }
+            let leftLifecycle = PlanSearch.lifecycleRank(left.bucket)
+            let rightLifecycle = PlanSearch.lifecycleRank(right.bucket)
+            if leftLifecycle != rightLifecycle { return leftLifecycle < rightLifecycle }
+        }
         if left.isReadyToClose != right.isReadyToClose { return left.isReadyToClose }
         if left.needsAttention != right.needsAttention { return left.needsAttention }
         return (left.progressPercent ?? 0) > (right.progressPercent ?? 0)

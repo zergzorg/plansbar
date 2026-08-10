@@ -2,7 +2,7 @@
 
 PlansBar is an open-source macOS menu bar app for working with Markdown plans across local Git repositories.
 
-This repository starts with a clean publication boundary and a buildable source preview. The app will index a workspace chosen by the user, keep plan files read-only, and hand lifecycle changes to a user-selected coding agent. It does not collect telemetry.
+This repository starts with a clean publication boundary and a buildable source preview. The app will index repository roots explicitly added by the user from any folder, keep plan files read-only, and hand lifecycle changes or repository preparation to a user-selected coding agent. It does not collect telemetry.
 
 ## Requirements
 
@@ -25,12 +25,29 @@ The build is ad-hoc signed for local use. PlansBar does not publish a downloadab
 
 ## Privacy boundary
 
-- You choose the workspace root.
+- You explicitly choose each repository root; PlansBar does not search parent folders for repositories.
 - PlansBar reads plan files in place and never edits or moves them.
 - Derived state stays on the Mac.
 - No telemetry, accounts, or cloud service.
 
 See [Docs/PRIVACY.md](Docs/PRIVACY.md) and [Docs/ARCHITECTURE.md](Docs/ARCHITECTURE.md).
+
+## Plan repositories
+
+PlansBar supports one executable-plan format: [Plan Format v1](Docs/PLAN_FORMAT_V1.md). Add each repository root explicitly and keep the same internal structure in every repository:
+
+```text
+docs/plans/{backlog,active,completed}
+```
+
+If that structure is missing or a candidate is not valid v1, PlansBar stays read-only and offers a [repository preparation prompt](Docs/REPOSITORY_PREPARATION_AGENT_PROMPT.md).
+
+The same checks are available from the built CLI:
+
+```bash
+.build/release/plansbar validate-repository --root /path/to/repository --json
+.build/release/plansbar lint /path/to/repository --json
+```
 
 ## Repository layout
 
@@ -42,7 +59,7 @@ See [Docs/PRIVACY.md](Docs/PRIVACY.md) and [Docs/ARCHITECTURE.md](Docs/ARCHITECT
 
 ## Status
 
-The initial public commit is a source preview. Workspace selection and the self-contained local index belong to the next implementation task.
+The source preview now includes a persistent repository picker, strict Plan Format v1 validation, a versioned local cache, cross-repository search, and preparation prompts for repositories that need setup or migration. Agent launching, filesystem watching, and release signing remain in progress.
 
 ## License
 

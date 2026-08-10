@@ -13,15 +13,15 @@ final class Preferences: ObservableObject {
         hidden = Set(stored)
     }
 
-    func isVisible(_ repository: String) -> Bool {
-        !hidden.contains(repository)
+    func isVisible(_ repositoryID: String) -> Bool {
+        !hidden.contains(repositoryID)
     }
 
-    func toggle(_ repository: String) {
-        if hidden.contains(repository) {
-            hidden.remove(repository)
+    func toggle(_ repositoryID: String) {
+        if hidden.contains(repositoryID) {
+            hidden.remove(repositoryID)
         } else {
-            hidden.insert(repository)
+            hidden.insert(repositoryID)
         }
         UserDefaults.standard.set(Array(hidden), forKey: Self.hiddenKey)
     }

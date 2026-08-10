@@ -1,0 +1,33 @@
+[
+  {
+    "root": "repository/ready/sample-api",
+    "state": "ready",
+    "candidate_plan_paths": [
+      "docs/plans/active/2026-08-10-sample-rollout.md"
+    ]
+  },
+  {
+    "root": "repository/missing-structure/mobile-app",
+    "state": "missing_structure",
+    "candidate_plan_paths": []
+  },
+  {
+    "root": "repository/invalid-plans/sample-api",
+    "state": "invalid_plans",
+    "candidate_plan_paths": [
+      "docs/plans/active/2026-08-10-old-plan.md"
+    ]
+  },
+  {
+    "root": "repository/ambiguous-completed/sample-api",
+    "state": "invalid_plans",
+    "candidate_plan_paths": [
+      "docs/plans/completed/2026-08-10-ambiguous-history.md"
+    ]
+  },
+  {
+    "root": "repository/inaccessible/moved-repo",
+    "state": "inaccessible",
+    "candidate_plan_paths": []
+  }
+]

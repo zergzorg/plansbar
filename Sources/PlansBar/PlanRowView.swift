@@ -4,6 +4,7 @@ struct PlanRowView: View {
     let task: PlanTask
     let isExpanded: Bool
     let isCompact: Bool
+    let showsContext: Bool
     let onToggle: () -> Void
     let onRun: () -> Void
 
@@ -34,6 +35,12 @@ struct PlanRowView: View {
 
                         if !isCompact {
                             metadata(includePercentage: false)
+                        }
+
+                        if showsContext {
+                            Text("\(task.repo) · \(task.bucket)")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
                         }
                     }
 
@@ -79,7 +86,7 @@ struct PlanRowView: View {
                         Button(task.actionTitle, action: onRun)
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
-                            .disabled(!task.isMarkdown)
+                            .disabled(!task.isActionable)
 
                         Menu {
                             Button {

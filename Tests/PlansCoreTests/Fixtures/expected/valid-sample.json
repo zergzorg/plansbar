@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "path": "docs/plans/active/2026-08-10-sample-rollout.md",
+  "bucket": "active",
+  "format": "v1",
+  "parse_state": "parsed",
+  "plan_version": "1",
+  "title": "Sample rollout",
+  "status": "active",
+  "created": "2026-08-10",
+  "completed": "metadata_missing",
+  "scope": "Demonstrate deterministic v1 parsing",
+  "checkbox_total": 3,
+  "checkbox_done": 2,
+  "progress_percent": 67,
+  "next_open_step": "Verify the root-relative golden output.",
+  "lint_errors": [],
+  "lint_warnings": []
+}

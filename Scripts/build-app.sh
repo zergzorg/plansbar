@@ -4,6 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 APP_NAME="PlansBar"
+APP_PRODUCT="PlansBarApp"
 BUNDLE_ID="io.github.zergzorg.plansbar"
 BUNDLE="build/${APP_NAME}.app"
 ICON_SOURCE="Resources/AppIcon.png"
@@ -15,7 +16,7 @@ swift build -c release
 echo "→ Creating ${BUNDLE}"
 rm -rf "${BUNDLE}"
 mkdir -p "${BUNDLE}/Contents/MacOS" "${BUNDLE}/Contents/Resources"
-cp ".build/release/${APP_NAME}" "${BUNDLE}/Contents/MacOS/${APP_NAME}"
+cp ".build/release/${APP_PRODUCT}" "${BUNDLE}/Contents/MacOS/${APP_NAME}"
 strip -S "${BUNDLE}/Contents/MacOS/${APP_NAME}"
 
 echo "→ Creating app icon"
@@ -60,11 +61,11 @@ cat > "${BUNDLE}/Contents/Info.plist" <<PLIST
     <key>LSUIElement</key>
     <true/>
     <key>NSDocumentsFolderUsageDescription</key>
-    <string>PlansBar reads plan files from a workspace you choose.</string>
+    <string>PlansBar reads plan files from repositories you add.</string>
     <key>NSDesktopFolderUsageDescription</key>
-    <string>PlansBar reads plan files from a workspace you choose.</string>
+    <string>PlansBar reads plan files from repositories you add.</string>
     <key>NSDownloadsFolderUsageDescription</key>
-    <string>PlansBar reads plan files from a workspace you choose.</string>
+    <string>PlansBar reads plan files from repositories you add.</string>
 </dict>
 </plist>
 PLIST

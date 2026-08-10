@@ -1,24 +1,55 @@
 import Foundation
 import PlansCore
 
-/// Подмножество `src/shared/types.ts`, которое нужно панели.
-/// Разбор планов остаётся в TypeScript — здесь только чтение готового снапшота.
-struct Snapshot: Codable {
+struct Snapshot {
     let generatedAt: String
     let repositories: [Repository]
 
     static let empty = Snapshot(generatedAt: "", repositories: [])
+
+    init(generatedAt: String, repositories: [Repository]) {
+        self.generatedAt = generatedAt
+        self.repositories = repositories
+    }
+
+    init(_ snapshot: PlansSnapshot) {
+        generatedAt = snapshot.generatedAt
+        repositories = snapshot.validations.map(Repository.init)
+    }
 }
 
-struct Repository: Codable, Identifiable {
+struct Repository: Identifiable {
+    let identity: RepositoryIdentity
     let name: String
     let path: String
     let tasks: [PlanTask]
 
-    var id: String { name }
+    var id: String { identity.rawValue }
+
+    init(identity: RepositoryIdentity, name: String, path: String, tasks: [PlanTask]) {
+        self.identity = identity
+        self.name = name
+        self.path = path
+        self.tasks = tasks
+    }
+
+    init(_ validation: RepositoryValidation) {
+        identity = validation.identity
+        name = validation.name
+        path = validation.rootURL.path
+        tasks = validation.plans.map {
+            PlanTask(
+                $0,
+                repositoryIdentity: validation.identity,
+                repositoryName: validation.name,
+                repositoryPath: validation.rootURL.path
+            )
+        }
+    }
 }
 
-struct PlanTask: Codable, Identifiable {
+struct PlanTask: Identifiable {
+    let repositoryIdentity: RepositoryIdentity
     let repo: String
     let repoPath: String
     let path: String
@@ -34,40 +65,53 @@ struct PlanTask: Codable, Identifiable {
     let nextOpenStep: String?
     let missingMetadata: [String]
     let isStale: Bool
+    let parseState: PlanParseState
+    let lintErrors: [String]
 
-    var id: String { "\(repo):\(path)" }
+    var id: String { "\(repositoryIdentity.rawValue):\(path)" }
 
-    enum CodingKeys: String, CodingKey {
-        case repo
-        case repoPath
-        case path
-        case absolutePath
-        case sourceFile
-        case bucket
-        case title
-        case status
-        case checkboxTotal = "checkbox_total"
-        case checkboxDone = "checkbox_done"
-        case progressPercent = "progress_percent"
-        case daysSinceModified = "days_since_modified"
-        case nextOpenStep = "next_open_step"
-        case missingMetadata = "missing_metadata"
-        case isStale = "is_stale"
+    init(
+        _ plan: PlanRecord,
+        repositoryIdentity: RepositoryIdentity,
+        repositoryName: String,
+        repositoryPath: String
+    ) {
+        self.repositoryIdentity = repositoryIdentity
+        repo = repositoryName
+        repoPath = repositoryPath
+        path = plan.relativePath
+        absolutePath = plan.absolutePath
+        sourceFile = nil
+        bucket = plan.bucket.rawValue
+        title = plan.title
+        status = plan.status
+        checkboxTotal = plan.checkboxTotal
+        checkboxDone = plan.checkboxDone
+        progressPercent = plan.progressPercent
+        daysSinceModified = plan.daysSinceModified
+        nextOpenStep = plan.nextOpenStep
+        missingMetadata = plan.lintErrors
+        isStale = plan.status == "draft" || (plan.daysSinceModified ?? 0) > 30
+        parseState = plan.parseState
+        lintErrors = plan.lintErrors
     }
 
     var planPath: String { sourceFile ?? absolutePath }
     var isMarkdown: Bool { planPath.lowercased().hasSuffix(".md") }
+    var isActionable: Bool { isMarkdown && parseState == .parsed }
     var isActive: Bool { bucket == "active" }
     var isReadyToClose: Bool { isActive && progressPercent == 100 }
 
     var needsAttention: Bool {
         isStale
+            || parseState == .invalidPlan
             || !missingMetadata.isEmpty
             || ["blocked", "paused", "deferred"].contains(status.lowercased())
             || (isActive && (nextOpenStep?.isEmpty ?? true) && !isReadyToClose)
     }
 
     var signal: PlanSignal {
+        if parseState == .invalidPlan { return .noContext }
         if ["blocked", "paused", "deferred"].contains(status.lowercased()) { return .blocked }
         if isReadyToClose { return .ready }
         if !missingMetadata.isEmpty { return .noContext }
@@ -97,6 +141,7 @@ struct PlanTask: Codable, Identifiable {
     }
 
     var actionTitle: String {
+        if parseState == .invalidPlan { return "Needs preparation" }
         if bucket == "backlog" { return "Start plan" }
         if isReadyToClose { return "Review plan" }
         return "Copy prompt"
