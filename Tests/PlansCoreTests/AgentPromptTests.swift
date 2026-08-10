@@ -60,4 +60,22 @@ final class AgentPromptTests: XCTestCase {
         XCTAssertTrue(AgentPrompt.make(input).contains("Activate and start this plan."))
         XCTAssertTrue(AgentPrompt.make(input, language: .russian).contains("Активируй и начни этот план."))
     }
+
+    func testNewIdeaPromptKeepsProviderNeutralBoundaries() {
+        let input = NewIdeaPromptInput(
+            repositoryName: "sample-api",
+            repositoryPath: "~/Code/sample-api",
+            idea: "Add release health"
+        )
+        let english = AgentPrompt.makeNewIdea(input)
+        let russian = AgentPrompt.makeNewIdea(input, language: .russian)
+
+        for prompt in [english, russian] {
+            XCTAssertTrue(prompt.contains("sample-api"))
+            XCTAssertTrue(prompt.contains("Add release health"))
+            XCTAssertTrue(prompt.contains("docs/plans/backlog"))
+            XCTAssertFalse(prompt.contains("Codex"))
+            XCTAssertFalse(prompt.contains("Claude"))
+        }
+    }
 }

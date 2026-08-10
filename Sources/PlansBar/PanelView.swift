@@ -1,6 +1,15 @@
 import SwiftUI
 import PlansCore
 
+private enum PlanMode: String, CaseIterable, Identifiable {
+    case focus
+    case backlog
+
+    var id: String { rawValue }
+    var title: String { self == .focus ? "Focus" : "Backlog" }
+    var bucket: String { self == .focus ? "active" : "backlog" }
+}
+
 struct PanelView: View {
     static let width: CGFloat = 480
 
@@ -11,10 +20,12 @@ struct PanelView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("compactMode") private var isCompact = false
+    @AppStorage("planMode") private var planMode: PlanMode = .focus
     @State private var expandedTask: String?
     @State private var actionMessage = ""
     @State private var searchQuery = ""
     @State private var selectedSearchResult: String?
+    @State private var isNewIdeaPresented = false
     @FocusState private var isSearchFocused: Bool
 
     private var searchTerm: String {
@@ -24,7 +35,7 @@ struct PanelView: View {
     private var repositories: [Repository] {
         client.snapshot.repositories
             .compactMap { repo in
-                let tasks = repo.tasks.filter(\.isActive)
+                let tasks = repo.tasks.filter { $0.bucket == planMode.bucket }
                 guard !tasks.isEmpty else { return nil }
                 guard preferences.isVisible(repo.id) else { return nil }
                 return Repository(
@@ -60,7 +71,7 @@ struct PanelView: View {
                     identity: repo.identity,
                     name: repo.name,
                     path: repo.path,
-                    tasks: repo.tasks.filter(\.isActive)
+                    tasks: repo.tasks.filter { $0.bucket == planMode.bucket }
                 )
             }
             .filter { !$0.tasks.isEmpty }
@@ -89,6 +100,13 @@ struct PanelView: View {
         .onKeyPress(.downArrow) { moveSearchSelection(by: 1) }
         .onKeyPress(.upArrow) { moveSearchSelection(by: -1) }
         .onKeyPress(.return) { openSelectedSearchResult() }
+        .sheet(isPresented: $isNewIdeaPresented) {
+            NewIdeaEntryView(
+                repositories: accessStore.repositories,
+                preferredAgent: agentPreferences.preferred,
+                onSubmit: runNewIdea
+            )
+        }
     }
 
     // MARK: - Header
@@ -182,7 +200,18 @@ struct PanelView: View {
                 .help("Refresh index")
             }
 
-            searchField
+            HStack(spacing: 8) {
+                Picker("Mode", selection: $planMode) {
+                    ForEach(PlanMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 132)
+
+                searchField
+            }
         }
         .padding(.horizontal, 14)
         .padding(.top, 8)
@@ -426,7 +455,7 @@ struct PanelView: View {
     private var emptyTitle: String {
         if !searchTerm.isEmpty { return "No plans found" }
         switch client.connection {
-        case .connected: return "No active plans"
+        case .connected: return planMode == .focus ? "No active plans" : "No backlog plans"
         case .starting: return "Starting index"
         case .unavailable: return accessStore.repositories.isEmpty ? "Add a repository" : "Repositories unavailable"
         }
@@ -438,7 +467,7 @@ struct PanelView: View {
         case .connected:
             return client.snapshot.repositories.isEmpty
                 ? "The index is empty. Check that repositories contain docs/plans."
-                : "The selected repositories have no active work."
+                : "The selected repositories have no \(planMode.bucket) plans."
         case .starting:
             return "The first scan may take up to a minute."
         case .unavailable(let reason):
@@ -465,6 +494,13 @@ struct PanelView: View {
             }
 
             Spacer()
+
+            Button("New Idea…") {
+                isNewIdeaPresented = true
+            }
+            .buttonStyle(.borderless)
+            .font(.system(size: 11))
+            .disabled(accessStore.repositories.isEmpty)
 
             Menu {
                 Text("PlansBar \(AppInfo.versionLabel)")
@@ -524,6 +560,23 @@ struct PanelView: View {
         actionMessage = "Opening \(adapter.title)…"
         Task {
             actionMessage = await client.performPreparation(issue, with: adapter)
+            try? await Task.sleep(for: .seconds(4))
+            actionMessage = ""
+        }
+    }
+
+    private func runNewIdea(
+        repository: RegisteredRepository,
+        idea: String,
+        adapter: AgentAdapter
+    ) {
+        actionMessage = adapter == .copyOnly ? "Creating prompt…" : "Opening \(adapter.title)…"
+        Task {
+            actionMessage = await client.performNewIdea(
+                repository: repository,
+                idea: idea,
+                with: adapter
+            )
             try? await Task.sleep(for: .seconds(4))
             actionMessage = ""
         }

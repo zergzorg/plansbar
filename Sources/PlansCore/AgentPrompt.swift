@@ -40,6 +40,18 @@ public struct AgentPromptInput: Sendable {
     }
 }
 
+public struct NewIdeaPromptInput: Sendable {
+    public let repositoryName: String
+    public let repositoryPath: String
+    public let idea: String
+
+    public init(repositoryName: String, repositoryPath: String, idea: String) {
+        self.repositoryName = repositoryName
+        self.repositoryPath = repositoryPath
+        self.idea = idea
+    }
+}
+
 public enum AgentPrompt {
     public static func make(
         _ input: AgentPromptInput,
@@ -50,6 +62,32 @@ public enum AgentPrompt {
             return english(input)
         case .russian:
             return russian(input)
+        }
+    }
+
+    public static func makeNewIdea(
+        _ input: NewIdeaPromptInput,
+        language: AgentPromptLanguage = .english
+    ) -> String {
+        switch language {
+        case .english:
+            return """
+            Create a new backlog plan for this idea.
+
+            Repository: \(input.repositoryName) (\(input.repositoryPath))
+            Idea: \(input.idea)
+
+            Read the repository instructions and Plan Format v1 contract. Create one plan in docs/plans/backlog, keep it in backlog status, and do not start implementation. Do not commit or push without separate authorization.
+            """
+        case .russian:
+            return """
+            Создай новый backlog-план для этой идеи.
+
+            Репозиторий: \(input.repositoryName) (\(input.repositoryPath))
+            Идея: \(input.idea)
+
+            Прочитай инструкции репозитория и контракт Plan Format v1. Создай один план в docs/plans/backlog, оставь статус backlog и не начинай реализацию. Не делай commit или push без отдельного разрешения.
+            """
         }
     }
 

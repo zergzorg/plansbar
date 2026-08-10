@@ -171,4 +171,31 @@ final class IndexClient: ObservableObject {
             return error.localizedDescription
         }
     }
+
+    func performNewIdea(
+        repository: RegisteredRepository,
+        idea: String,
+        with adapter: AgentAdapter
+    ) async -> String {
+        let prompt = AgentPrompt.makeNewIdea(NewIdeaPromptInput(
+            repositoryName: repository.name,
+            repositoryPath: repository.path,
+            idea: idea
+        ))
+        if adapter == .copyOnly {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(prompt, forType: .string)
+            return "New idea prompt copied"
+        }
+        do {
+            try await AgentLauncher.launch(
+                adapter: adapter,
+                repositoryPath: repository.path,
+                prompt: prompt
+            )
+            return "Opened \(adapter.title) in Terminal"
+        } catch {
+            return error.localizedDescription
+        }
+    }
 }

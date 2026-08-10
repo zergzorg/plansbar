@@ -79,6 +79,7 @@ private enum FixtureVerifier {
             try verifySearch()
             try verifyAgentLaunchCommand()
             try verifyGitWorktreeGuard()
+            try verifyNewIdeaPrompt()
             print("Fixture verification passed.")
         } catch {
             fputs("Fixture verification failed: \(error)\n", stderr)
@@ -290,6 +291,27 @@ private enum FixtureVerifier {
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
             throw VerificationFailure(description: "Unable to create Git guard fixture")
+        }
+    }
+
+    private static func verifyNewIdeaPrompt() throws {
+        let input = NewIdeaPromptInput(
+            repositoryName: "sample-api",
+            repositoryPath: "~/Code/sample-api",
+            idea: "Add release health"
+        )
+        for prompt in [
+            AgentPrompt.makeNewIdea(input),
+            AgentPrompt.makeNewIdea(input, language: .russian)
+        ] {
+            guard prompt.contains("sample-api"),
+                  prompt.contains("Add release health"),
+                  prompt.contains("docs/plans/backlog"),
+                  !prompt.contains("Codex"),
+                  !prompt.contains("Claude")
+            else {
+                throw VerificationFailure(description: "New idea prompt lost provider-neutral context")
+            }
         }
     }
 
