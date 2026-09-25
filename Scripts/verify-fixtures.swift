@@ -298,6 +298,16 @@ private enum FixtureVerifier {
         guard GitWorktreeGuard.check(repositoryPath: repository.path) == .changed else {
             throw VerificationFailure(description: "Dirty Git repository was not blocked")
         }
+
+        // Вывод `git status` больше буфера pipe не должен превращаться в сбой проверки.
+        for index in 0..<400 {
+            let name = "untracked-\(index)-" + String(repeating: "x", count: 200) + ".txt"
+            try Data().write(to: repository.appending(path: name))
+        }
+        let busyState = GitWorktreeGuard.check(repositoryPath: repository.path)
+        guard busyState == .changed else {
+            throw VerificationFailure(description: "Large dirty worktree reported \(busyState)")
+        }
     }
 
     private static func runGit(_ arguments: [String], at repository: URL) throws {

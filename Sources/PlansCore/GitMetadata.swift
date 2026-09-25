@@ -57,12 +57,12 @@ public struct GitCapability: Sendable {
             "--name-only",
             "--", relativeDirectory
         ]
-        guard let output = Self.run(
+        guard case .output(let data) = Self.run(
             executablePath: executablePath,
             arguments: arguments,
             timeout: timeout
         ) else { return [:] }
-        return Self.parseLog(output)
+        return Self.parseLog(String(decoding: data, as: UTF8.self))
     }
 
     static func parseLog(_ output: String) -> [String: Date] {
@@ -83,15 +83,24 @@ public struct GitCapability: Sendable {
         return dates
     }
 
-    private static func run(
+    enum RunResult {
+        case output(Data)
+        case failed
+        case timedOut
+    }
+
+    static func run(
         executablePath: String,
         arguments: [String],
         timeout: TimeInterval,
         outputLimit: Int = 4 * 1024 * 1024
-    ) -> String? {
+    ) -> RunResult {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
         process.arguments = arguments
+        process.environment = ProcessInfo.processInfo.environment.merging([
+            "GIT_OPTIONAL_LOCKS": "0"
+        ]) { _, new in new }
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
@@ -99,15 +108,17 @@ public struct GitCapability: Sendable {
         do {
             try process.run()
         } catch {
-            return nil
+            return .failed
         }
 
         let handle = pipe.fileHandleForReading
         let collector = OutputCollector(limit: outputLimit)
         let readingFinished = DispatchSemaphore(value: 0)
         DispatchQueue.global(qos: .userInitiated).async {
+            // Pipe дочитывается до конца даже сверх лимита: иначе Git
+            // заблокируется на записи и никогда не завершится.
             while let chunk = try? handle.read(upToCount: 64 * 1024), !chunk.isEmpty {
-                if collector.append(chunk) { break }
+                collector.append(chunk)
             }
             readingFinished.signal()
         }
@@ -116,11 +127,11 @@ public struct GitCapability: Sendable {
         if readingFinished.wait(timeout: deadline) == .timedOut {
             process.terminate()
             _ = readingFinished.wait(timeout: .now() + 1)
-            return nil
+            return .timedOut
         }
         process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        return String(data: collector.data, encoding: .utf8)
+        guard process.terminationStatus == 0 else { return .failed }
+        return .output(collector.data)
     }
 }
 
@@ -140,12 +151,10 @@ private final class OutputCollector: @unchecked Sendable {
         return storage
     }
 
-    /// Возвращает `true`, когда лимит исчерпан и читать дальше не нужно.
-    func append(_ chunk: Data) -> Bool {
+    func append(_ chunk: Data) {
         lock.lock()
         defer { lock.unlock() }
-        guard storage.count < limit else { return true }
+        guard storage.count < limit else { return }
         storage.append(chunk.prefix(limit - storage.count))
-        return storage.count >= limit
     }
 }

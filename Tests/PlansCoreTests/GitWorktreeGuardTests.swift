@@ -30,6 +30,13 @@ final class GitWorktreeGuardTests: XCTestCase {
             encoding: .utf8
         )
         XCTAssertEqual(GitWorktreeGuard.check(repositoryPath: repository.path), .changed)
+
+        // Вывод `git status` больше буфера pipe не должен превращаться в сбой проверки.
+        for index in 0..<400 {
+            let name = "untracked-\(index)-" + String(repeating: "x", count: 200) + ".txt"
+            try Data().write(to: repository.appending(path: name))
+        }
+        XCTAssertEqual(GitWorktreeGuard.check(repositoryPath: repository.path), .changed)
     }
 
     private func runGit(_ arguments: [String], at repository: URL) throws {
