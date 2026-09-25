@@ -26,7 +26,9 @@ struct RepositoryIssue: Identifiable {
     let invalidPlanCount: Int
     let preparationPrompt: String?
 
-    var id: String { identity.rawValue }
+    /// Секция планов того же репозитория лежит в том же LazyVStack,
+    /// поэтому id карточки не должен совпадать с `Repository.id`.
+    var id: String { "issue:\(identity.rawValue)" }
 }
 
 @MainActor
