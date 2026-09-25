@@ -21,7 +21,7 @@ Empty buckets may contain `.gitkeep`. `README.md`, hidden files, and content bel
 Repository validation has four states:
 
 - `ready`: the required directories exist and every candidate is valid v1.
-- `missing_structure`: one or more required directories are absent.
+- `missing_structure`: none of the bucket directories exist. Git does not store empty directories, so a repository with at least one bucket is still indexed; absent buckets are listed in `missing_paths`.
 - `invalid_plans`: the structure exists, but at least one candidate is not valid v1.
 - `inaccessible`: the registered root is missing or cannot be read; re-add it or fix permissions.
 

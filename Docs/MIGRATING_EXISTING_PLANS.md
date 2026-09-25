@@ -5,7 +5,7 @@ PlansBar accepts one plan format: [Plan Format v1](PLAN_FORMAT_V1.md). A reposit
 ## Repository states
 
 - `ready`: required folders exist and all candidate plans pass v1 validation. No preparation prompt is generated.
-- `missing_structure`: `docs/plans/{backlog,active,completed}` is incomplete.
+- `missing_structure`: none of `docs/plans/{backlog,active,completed}` exist.
 - `invalid_plans`: at least one candidate is not valid v1.
 - `inaccessible`: the registered root is missing or unreadable. Re-add it or fix access before preparation.
 

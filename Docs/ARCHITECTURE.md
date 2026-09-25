@@ -34,4 +34,4 @@ Tests/
 
 `PlansCore` owns the strict-v1 parser, repository validator, redacted CLI reports, repository preparation prompt, stable repository identity, and versioned snapshot cache. The app stores independent repository bookmarks and the latest valid cache in Application Support, validates repositories off the main actor, and atomically publishes the cached or refreshed snapshot to SwiftUI. Missing structure and invalid plans stay visible as repository health cards; the app never mutates their files.
 
-Filesystem watching, Git freshness, and agent launch adapters are separate follow-up work.
+An FSEvents watcher on each root's `docs` rescans only the affected repository. The first scan publishes the active and backlog queue before the completed archive. Plan freshness comes from one `git log` per repository and falls back to file modification time when Git is missing or times out. Agent handoff opens Codex CLI or Claude Code CLI in Terminal only after `git status` reports a clean worktree; copying the prompt is always available.
