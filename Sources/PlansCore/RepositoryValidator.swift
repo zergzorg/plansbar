@@ -40,12 +40,7 @@ public enum RepositoryValidator {
         // — обычное состояние живого репозитория, а не сломанная структура.
         // Блокируем только когда не найдено ни одного bucket: иначе валидные
         // планы из существующих каталогов просто исчезли бы из индекса.
-        let presentBuckets = buckets.filter { bucket in
-            var bucketIsDirectory: ObjCBool = false
-            let url = plansRoot.appending(path: bucket.rawValue, directoryHint: .isDirectory)
-            return FileManager.default.fileExists(atPath: url.path, isDirectory: &bucketIsDirectory)
-                && bucketIsDirectory.boolValue
-        }
+        let presentBuckets = buckets.filter { !missingPaths.contains("docs/plans/\($0.rawValue)") }
         guard missingPaths.count < PlanBucket.allCases.count else {
             return RepositoryValidation(
                 identity: identity,
@@ -160,24 +155,11 @@ public enum RepositoryValidator {
                     now: now
                 ))
             } else {
-                plans.append(PlanRecord(
+                plans.append(PlanParser.invalidRecord(
+                    fileURL: entryURL,
                     relativePath: relativePath,
-                    absolutePath: entryURL.path,
                     bucket: bucket,
-                    parseState: .invalidPlan,
-                    planVersion: "metadata_missing",
-                    title: entryURL.deletingPathExtension().lastPathComponent,
-                    status: "metadata_missing",
-                    created: "metadata_missing",
-                    completed: "metadata_missing",
-                    scope: "metadata_missing",
-                    checkboxTotal: 0,
-                    checkboxDone: 0,
-                    progressPercent: nil,
-                    nextOpenStep: nil,
-                    lintErrors: ["unsupported_plan_version"],
-                    lintWarnings: [],
-                    daysSinceModified: nil
+                    errors: ["unsupported_plan_version"]
                 ))
             }
         }

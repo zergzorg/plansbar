@@ -18,12 +18,11 @@ public enum PlanSearch {
         return nil
     }
 
-    public static func lifecycleRank(_ bucket: String) -> Int {
+    public static func lifecycleRank(_ bucket: PlanBucket) -> Int {
         switch bucket {
-        case "active": return 0
-        case "backlog": return 1
-        case "completed": return 2
-        default: return 3
+        case .active: return 0
+        case .backlog: return 1
+        case .completed: return 2
         }
     }
 

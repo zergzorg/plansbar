@@ -230,8 +230,8 @@ private enum FixtureVerifier {
             repository: "sample-api",
             nextStep: "Verify fixtures"
         ) == 3,
-        PlanSearch.lifecycleRank("active") < PlanSearch.lifecycleRank("backlog"),
-        PlanSearch.lifecycleRank("backlog") < PlanSearch.lifecycleRank("completed")
+        PlanSearch.lifecycleRank(.active) < PlanSearch.lifecycleRank(.backlog),
+        PlanSearch.lifecycleRank(.backlog) < PlanSearch.lifecycleRank(.completed)
         else {
             throw VerificationFailure(description: "Plan search ranking failed")
         }

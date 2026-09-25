@@ -5,17 +5,8 @@ struct MarketingPreviewView: View {
     let mode: String
 
     private var repositories: [Repository] {
-        let bucket = mode == "backlog" ? "backlog" : "active"
-        return Snapshot.marketingPreview.repositories.compactMap { repository in
-            let tasks = repository.tasks.filter { $0.bucket == bucket }
-            guard !tasks.isEmpty else { return nil }
-            return Repository(
-                identity: repository.identity,
-                name: repository.name,
-                path: repository.path,
-                tasks: tasks
-            )
-        }
+        let bucket: PlanBucket = mode == "backlog" ? .backlog : .active
+        return Snapshot.marketingPreview.repositories.compactMap { $0.filtered(to: bucket) }
     }
 
     private var tasks: [PlanTask] { repositories.flatMap(\.tasks) }

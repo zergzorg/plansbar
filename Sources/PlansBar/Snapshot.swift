@@ -143,6 +143,12 @@ struct Repository: Identifiable {
             )
         }
     }
+
+    func filtered(to bucket: PlanBucket) -> Repository? {
+        let tasks = tasks.filter { $0.bucket == bucket }
+        guard !tasks.isEmpty else { return nil }
+        return Repository(identity: identity, name: name, path: path, tasks: tasks)
+    }
 }
 
 struct PlanTask: Identifiable {
@@ -151,8 +157,7 @@ struct PlanTask: Identifiable {
     let repoPath: String
     let path: String
     let absolutePath: String
-    let sourceFile: String?
-    let bucket: String
+    let bucket: PlanBucket
     let title: String
     let status: String
     let checkboxTotal: Int
@@ -160,7 +165,6 @@ struct PlanTask: Identifiable {
     let progressPercent: Int?
     let daysSinceModified: Int?
     let nextOpenStep: String?
-    let missingMetadata: [String]
     let isStale: Bool
     let parseState: PlanParseState
     let lintErrors: [String]
@@ -178,8 +182,7 @@ struct PlanTask: Identifiable {
         repoPath = repositoryPath
         path = plan.relativePath
         absolutePath = plan.absolutePath
-        sourceFile = nil
-        bucket = plan.bucket.rawValue
+        bucket = plan.bucket
         title = plan.title
         status = plan.status
         checkboxTotal = plan.checkboxTotal
@@ -187,31 +190,26 @@ struct PlanTask: Identifiable {
         progressPercent = plan.progressPercent
         daysSinceModified = plan.daysSinceModified
         nextOpenStep = plan.nextOpenStep
-        missingMetadata = plan.lintErrors
         isStale = plan.status == "draft" || (plan.daysSinceModified ?? 0) > 30
         parseState = plan.parseState
         lintErrors = plan.lintErrors
     }
 
-    var planPath: String { sourceFile ?? absolutePath }
-    var isMarkdown: Bool { planPath.lowercased().hasSuffix(".md") }
-    var isActionable: Bool { isMarkdown && parseState == .parsed && bucket != "completed" }
-    var isActive: Bool { bucket == "active" }
+    var isActionable: Bool { parseState == .parsed && bucket != .completed }
+    var isActive: Bool { bucket == .active }
     var isReadyToClose: Bool { isActive && progressPercent == 100 }
 
     var needsAttention: Bool {
         isStale
             || parseState == .invalidPlan
-            || !missingMetadata.isEmpty
-            || ["blocked", "paused", "deferred"].contains(status.lowercased())
+            || ["blocked", "paused"].contains(status.lowercased())
             || (isActive && (nextOpenStep?.isEmpty ?? true) && !isReadyToClose)
     }
 
     var signal: PlanSignal {
         if parseState == .invalidPlan { return .noContext }
-        if ["blocked", "paused", "deferred"].contains(status.lowercased()) { return .blocked }
+        if ["blocked", "paused"].contains(status.lowercased()) { return .blocked }
         if isReadyToClose { return .ready }
-        if !missingMetadata.isEmpty { return .noContext }
         if isStale { return .stale }
         return .normal
     }
@@ -243,21 +241,21 @@ struct PlanTask: Identifiable {
 
     var actionTitle: String {
         if parseState == .invalidPlan { return "Needs preparation" }
-        if bucket == "backlog" { return "Start plan" }
+        if bucket == .backlog { return "Start plan" }
         if isReadyToClose { return "Review plan" }
         return "Continue plan"
     }
 
     var portablePrompt: String {
         AgentPrompt.make(AgentPromptInput(
-            planPath: planPath,
+            planPath: absolutePath,
             repositoryName: repo,
             repositoryPath: repoPath,
             title: title,
             nextStep: nextOpenStep,
             completedSteps: checkboxDone,
             totalSteps: checkboxTotal,
-            intent: bucket == "backlog" ? .activatePlan : (isReadyToClose ? .closePlan : .continuePlan)
+            intent: bucket == .backlog ? .activatePlan : (isReadyToClose ? .closePlan : .continuePlan)
         ))
     }
 }

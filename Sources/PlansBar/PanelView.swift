@@ -7,7 +7,7 @@ private enum PlanMode: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
     var title: String { self == .focus ? "Focus" : "Backlog" }
-    var bucket: String { self == .focus ? "active" : "backlog" }
+    var bucket: PlanBucket { self == .focus ? .active : .backlog }
 }
 
 struct PanelView: View {
@@ -34,17 +34,8 @@ struct PanelView: View {
 
     private var repositories: [Repository] {
         client.snapshot.repositories
-            .compactMap { repo in
-                let tasks = repo.tasks.filter { $0.bucket == planMode.bucket }
-                guard !tasks.isEmpty else { return nil }
-                guard preferences.isVisible(repo.id) else { return nil }
-                return Repository(
-                    identity: repo.identity,
-                    name: repo.name,
-                    path: repo.path,
-                    tasks: tasks
-                )
-            }
+            .filter { preferences.isVisible($0.id) }
+            .compactMap { $0.filtered(to: planMode.bucket) }
             .sorted { $0.name < $1.name }
     }
 
@@ -66,15 +57,7 @@ struct PanelView: View {
     }
     private var repositoryChoices: [Repository] {
         client.snapshot.repositories
-            .map { repo in
-                Repository(
-                    identity: repo.identity,
-                    name: repo.name,
-                    path: repo.path,
-                    tasks: repo.tasks.filter { $0.bucket == planMode.bucket }
-                )
-            }
-            .filter { !$0.tasks.isEmpty }
+            .compactMap { $0.filtered(to: planMode.bucket) }
             .sorted { $0.name < $1.name }
     }
 
@@ -189,7 +172,7 @@ struct PanelView: View {
                 .help("Choose repositories")
 
                 Button {
-                    Task { await client.rescan() }
+                    Task { await client.refresh() }
                 } label: {
                     if client.isRefreshing {
                         ProgressView().controlSize(.small)
@@ -470,7 +453,7 @@ struct PanelView: View {
         case .connected:
             return client.snapshot.repositories.isEmpty
                 ? "The index is empty. Check that repositories contain docs/plans."
-                : "The selected repositories have no \(planMode.bucket) plans."
+                : "The selected repositories have no \(planMode.bucket.rawValue) plans."
         case .starting:
             return "The first scan may take up to a minute."
         case .unavailable(let reason):

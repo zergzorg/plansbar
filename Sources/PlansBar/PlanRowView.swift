@@ -12,11 +12,7 @@ struct PlanRowView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovered = false
-    @State private var copied: CopyKind?
-
-    private enum CopyKind {
-        case path
-    }
+    @State private var pathCopied = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: isCompact ? 4 : 8) {
@@ -40,7 +36,7 @@ struct PlanRowView: View {
                         }
 
                         if showsContext {
-                            Text("\(task.repo) · \(task.bucket)")
+                            Text("\(task.repo) · \(task.bucket.rawValue)")
                                 .font(.system(size: 10))
                                 .foregroundStyle(.tertiary)
                         }
@@ -115,7 +111,7 @@ struct PlanRowView: View {
                             }
 
                             Button {
-                                copy(task.planPath, kind: .path)
+                                copyPath()
                             } label: {
                                 Label("Copy path", systemImage: "link")
                             }
@@ -123,12 +119,12 @@ struct PlanRowView: View {
                             Divider()
 
                             Button {
-                                NSWorkspace.shared.selectFile(task.planPath, inFileViewerRootedAtPath: "")
+                                NSWorkspace.shared.selectFile(task.absolutePath, inFileViewerRootedAtPath: "")
                             } label: {
                                 Label("Show in Finder", systemImage: "folder")
                             }
                         } label: {
-                            Label(copied == nil ? "More" : "Copied", systemImage: copied == nil ? "ellipsis.circle" : "checkmark")
+                            Label(pathCopied ? "Copied" : "More", systemImage: pathCopied ? "checkmark" : "ellipsis.circle")
                         }
                         .menuStyle(.borderlessButton)
                         .controlSize(.small)
@@ -166,12 +162,12 @@ struct PlanRowView: View {
         preferredAgent == .copyOnly ? "Copy prompt" : task.actionTitle
     }
 
-    private func copy(_ text: String, kind: CopyKind) {
+    private func copyPath() {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-        copied = kind
+        NSPasteboard.general.setString(task.absolutePath, forType: .string)
+        pathCopied = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            if copied == kind { copied = nil }
+            pathCopied = false
         }
     }
 
@@ -223,5 +219,3 @@ struct PlanRowView: View {
         }
     }
 }
-
-extension PlanSignal: Equatable {}

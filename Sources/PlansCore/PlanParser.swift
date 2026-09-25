@@ -237,7 +237,7 @@ public enum PlanParser {
         }
     }
 
-    private static func invalidRecord(
+    static func invalidRecord(
         fileURL: URL,
         relativePath: String,
         bucket: PlanBucket,

@@ -121,7 +121,6 @@ final class IndexClient: ObservableObject {
         guard !affected.isEmpty else { return }
 
         isRefreshing = true
-        defer { isRefreshing = false }
         let updated = await validate(affected, buckets: PlanBucket.allCases)
         var merged = validations
         for validation in updated {
@@ -202,39 +201,23 @@ final class IndexClient: ObservableObject {
         }
     }
 
-    func rescan() async {
-        await refresh()
-    }
-
-    func copyPrompt(_ task: PlanTask) async -> String {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(task.portablePrompt, forType: .string)
-        return "Prompt copied"
-    }
-
     func perform(
         _ task: PlanTask,
         with adapter: AgentAdapter,
         executablePath: String?
     ) async -> String {
-        if adapter == .copyOnly { return await copyPrompt(task) }
-        do {
-            try await AgentLauncher.launch(
-                adapter: adapter,
-                repositoryPath: task.repoPath,
-                prompt: task.portablePrompt,
-                executablePath: executablePath
-            )
-            return "Opened \(adapter.title) in Terminal"
-        } catch {
-            return error.localizedDescription
-        }
+        await handOff(
+            task.portablePrompt,
+            repositoryPath: task.repoPath,
+            adapter: adapter,
+            executablePath: executablePath,
+            copiedMessage: "Prompt copied"
+        )
     }
 
     func copyPreparationPrompt(_ issue: RepositoryIssue) -> String {
         guard let prompt = issue.preparationPrompt else { return "Repository is not accessible" }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(prompt, forType: .string)
+        copy(prompt)
         return "Preparation prompt copied"
     }
 
@@ -243,19 +226,14 @@ final class IndexClient: ObservableObject {
         with adapter: AgentAdapter,
         executablePath: String?
     ) async -> String {
-        if adapter == .copyOnly { return copyPreparationPrompt(issue) }
         guard let prompt = issue.preparationPrompt else { return "Repository is not accessible" }
-        do {
-            try await AgentLauncher.launch(
-                adapter: adapter,
-                repositoryPath: issue.path,
-                prompt: prompt,
-                executablePath: executablePath
-            )
-            return "Opened \(adapter.title) in Terminal"
-        } catch {
-            return error.localizedDescription
-        }
+        return await handOff(
+            prompt,
+            repositoryPath: issue.path,
+            adapter: adapter,
+            executablePath: executablePath,
+            copiedMessage: "Preparation prompt copied"
+        )
     }
 
     func performNewIdea(
@@ -269,15 +247,30 @@ final class IndexClient: ObservableObject {
             repositoryPath: repository.path,
             idea: idea
         ))
+        return await handOff(
+            prompt,
+            repositoryPath: repository.path,
+            adapter: adapter,
+            executablePath: executablePath,
+            copiedMessage: "New idea prompt copied"
+        )
+    }
+
+    private func handOff(
+        _ prompt: String,
+        repositoryPath: String,
+        adapter: AgentAdapter,
+        executablePath: String?,
+        copiedMessage: String
+    ) async -> String {
         if adapter == .copyOnly {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(prompt, forType: .string)
-            return "New idea prompt copied"
+            copy(prompt)
+            return copiedMessage
         }
         do {
             try await AgentLauncher.launch(
                 adapter: adapter,
-                repositoryPath: repository.path,
+                repositoryPath: repositoryPath,
                 prompt: prompt,
                 executablePath: executablePath
             )
@@ -285,5 +278,10 @@ final class IndexClient: ObservableObject {
         } catch {
             return error.localizedDescription
         }
+    }
+
+    private func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 }

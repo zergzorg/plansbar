@@ -12,8 +12,8 @@ final class PlanSearchTests: XCTestCase {
     }
 
     func testLifecycleOrdering() {
-        XCTAssertLessThan(PlanSearch.lifecycleRank("active"), PlanSearch.lifecycleRank("backlog"))
-        XCTAssertLessThan(PlanSearch.lifecycleRank("backlog"), PlanSearch.lifecycleRank("completed"))
+        XCTAssertLessThan(PlanSearch.lifecycleRank(.active), PlanSearch.lifecycleRank(.backlog))
+        XCTAssertLessThan(PlanSearch.lifecycleRank(.backlog), PlanSearch.lifecycleRank(.completed))
     }
 
     private func rank(
