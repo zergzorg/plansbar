@@ -133,6 +133,11 @@ final class IndexClient: ObservableObject {
         }
         validations = merged
         publish(repositorySet: roots.map(\.registrationID), persist: true)
+        isRefreshing = false
+        // Полный refresh, запрошенный во время частичного, иначе потеряется.
+        if refreshRequested {
+            await refresh()
+        }
     }
 
     private func validate(
